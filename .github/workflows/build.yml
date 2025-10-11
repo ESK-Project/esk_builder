@@ -1,0 +1,131 @@
+name: Kernel Builder
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      KSU:
+        description: "KernelSU variant"
+        default: "NONE"
+        type: choice
+        options: ["NONE", "OFFICIAL", "NEXT", "SUKI"]
+
+      SUSFS:
+        description: "Enable SUSFS"
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+      LXC:
+        description: "Enable LXC"
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  MAN_DISABLE: true
+  FORCE_COLOR: "1"
+  TTY_COMPATIBLE: "1"
+  TERM: xterm-256color
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    env:
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    steps:
+      - name: Fail SUSFS requirement check
+        if: ${{ inputs.SUSFS == 'true' && inputs.KSU == 'NONE' }}
+        run: |
+          echo "::error::Cannot use SUSFS without KernelSU"
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Check required secrets
+        env:
+          KSU: ${{ inputs.KSU }}
+          SUSFS: ${{ inputs.SUSFS }}
+        run: |
+          ret=0
+
+          error() {
+            echo "::error::$*"
+            (( ret+=1 ))
+            return 0
+          }
+
+          # Validate secrets
+          [[ -z "$TG_CHAT_ID"  ]]  && error "Missing TG_CHAT_ID (Telegram Chat ID)"
+          [[ -z "$TG_BOT_TOKEN" ]] && error "Missing TG_BOT_TOKEN (Telegram Bot Token)"
+          [[ -z "$GH_TOKEN" ]]     && error "Missing GH_TOKEN (Github PAT)"
+
+          if (( ret )); then
+            echo "::error::Required secrets are missing. Please refer to README.md for proper configuration."
+            exit $ret
+          fi
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq bc bison ccache curl flex git tar wget aria2 jq zip 7zip build-essential
+
+      - name: Prepare ccache
+        run: |
+          echo "CCACHE_DIR=$HOME/.ccache" >> "$GITHUB_ENV"
+          echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.ccache"
+          ccache --set-config=compiler_check=content
+          ccache --set-config=hash_dir=false
+          ccache --set-config=sloppiness=file_macro,include_file_ctime,include_file_mtime,time_macros
+          ccache --set-config=direct_mode=true
+          ccache --set-config=max_size=7G
+          ccache --zero-stats
+          ccache --show-config
+          echo "clang_hash=$(clang --version | sha256sum | cut -c1-10 || echo none)" >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        id: restore-ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-
+
+      - name: Build
+        id: build
+        env:
+          KSU: ${{ inputs.KSU }}
+          SUSFS: ${{ inputs.SUSFS }}
+          LXC: ${{ inputs.LXC }}
+          SOURCE_DATE_EPOCH: "1704067200"
+        run: |
+          chmod +x build.sh
+          ./build.sh
+          file="$GITHUB_WORKSPACE/github.env"
+          [[ -f "$file" ]] || { echo "::error::github.env missing"; exit 1; }
+          cat "$file" >> "$GITHUB_OUTPUT"
+
+      - name: Save ccache
+        if: ${{ always() && steps.restore-ccache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+
+      - name: Upload final artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}
+          path: ${{ github.workspace }}/${{ steps.build.outputs.package_name }}.zip

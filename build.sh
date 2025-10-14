@@ -387,11 +387,15 @@ if [[ $KSU == "SUKI" ]]; then
     
     sudo ./patch_linux
     mv oImage Image
+
+    rm -rf ./patch_linux
     success "Patched KPM for SukiSU variant successfully!"
 fi
 
+info "Compressing kernel image..."
 7z a -t7z -m0=lzma2 -mx=9 -md=64m -mfb=128 -mmt=on Image.7z ./Image
 rm -rf ./Image
+success "Compressed kernel image!"
 
 VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"

@@ -408,12 +408,16 @@ if [[ $KSU == "SUKI" ]]; then
 fi
 
 info "Compressing kernel image..."
-7z a -t7z -m0=lzma2 -mx=9 -md=64m -mfb=128 -mmt=on Image.7z ./Image
+zstd -19 -T0 --no-progress -o Image.zst Image
+
+# Generate sha256 hash for Image.zst
+sha256sum Image.zst > Image.zst.sha256
+
 rm -rf ./Image
 
 info "Compressing static binaries with upx..."
 UPX_LIST=(
-    tools/7za
+    tools/zstd
     tools/fec
     tools/httools_static
     tools/lptools_static

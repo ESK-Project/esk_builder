@@ -376,8 +376,9 @@ if [[ $SUSFS == "true" ]]; then
         for patch in "$SUSFS_FIX_PATCHES"/*.patch; do
             kernel_patch < "$patch"
         done
-        cd "$KERNEL_DEST"
     fi
+    
+    cd "$KERNEL_DEST"
     config --enable CONFIG_KSU_SUSFS
     success "SuSFS applied!"
 else
@@ -393,7 +394,7 @@ fi
 
 # Baseband Guard (BBG) LSM (for KernelSU variants)
 if [[ $ksu_included == true ]]; then
-    info "Setup Baseband Guard (BBG) LSM for KernelSU"
+    info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
     wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
     config --enable CONFIG_BBG

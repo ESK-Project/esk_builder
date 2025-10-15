@@ -362,10 +362,10 @@ if [[ $SUSFS == "true" ]]; then
         for patch in "$SUSFS_FIX_PATCHES"/*.patch; do
             kernel_patch < "$patch"
         done
-        cd "$OLDPWD"
+        cd "$KERNEL_DEST"
     fi
     config --enable CONFIG_KSU_SUSFS
-    success "SuSFS applied"
+    success "SuSFS applied!"
 else
     config --disable CONFIG_KSU_SUSFS
 fi
@@ -373,7 +373,7 @@ fi
 # LXC support
 if [[ $LXC == "true" ]]; then
     info "Apply LXC patch"
-    pkernel_patch < "$KERNEL_PATCHES/lxc_support.patch"
+    kernel_patch < "$KERNEL_PATCHES/lxc_support.patch"
     success "LXC patch applied"
 fi
 
@@ -393,7 +393,7 @@ make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG"
 info "Build kernel: Image"
 clang_lto "$CLANG_LTO"
 make "${MAKE_ARGS[@]}" Image
-success "Kernel built successfully"
+success "Kernel built successfully!"
 
 ### Post-build #####################################################################
 
@@ -451,7 +451,7 @@ VARIANT="$KSU"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT-$(date '+%F')"
 zip -r9 "$WORKSPACE/$PACKAGE_NAME.zip" ./*
-cd "$OLDPWD"
+cd "$WORKSPACE"
 
 info "Writing build metadata to github.env"
 cat > "$WORKSPACE/github.env" << EOF
@@ -478,7 +478,7 @@ result_caption=$(
 *Artifact*
 • Name: $(escape_md_v2 "$PACKAGE_NAME.zip")
 • Size: $(escape_md_v2 "$(du -h "$WORKSPACE/$PACKAGE_NAME.zip" | cut -f1)")
-• SHA256: $(escape_md_v2 "$(sha256sum "$WORKSPACE/$PACKAGE_NAME.zip" | awk '{print $1}')")
+• SHA256: \`$(escape_md_v2 "$(sha256sum "$WORKSPACE/$PACKAGE_NAME.zip" | awk '{print $1}')")\`
 EOF
 )
 

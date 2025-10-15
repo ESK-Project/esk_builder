@@ -256,7 +256,7 @@ export KBUILD_BUILD_HOST
 
 cd "$KERNEL_DEST"
 KERNEL_VERSION=$(make -s kernelversion)
-DEFCONFIG_FILE=$(find ./arch/arm64/configs -name "$KERNEL_DEFCONFIG")
+DEFCONFIG_FILE=$(realpath "$(find ./arch/arm64/configs -name "$KERNEL_DEFCONFIG")")
 
 ### Kernel helpers #################################################################
 

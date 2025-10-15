@@ -15,9 +15,6 @@ on:
       LXC:
         type: string
         required: true
-      NOTIFY:
-        type: string
-        required: true
 
   workflow_dispatch:
     inputs:

@@ -15,6 +15,9 @@ on:
       LXC:
         type: string
         required: true
+      RELEASE_BUILD:
+        type: string
+        required: false
 
   workflow_dispatch:
     inputs:
@@ -122,6 +125,7 @@ jobs:
           KSU: ${{ inputs.KSU }}
           SUSFS: ${{ inputs.SUSFS }}
           LXC: ${{ inputs.LXC }}
+          RELEASE_BUILD: ${{ inputs.RELEASE_BUILD }}
           SOURCE_DATE_EPOCH: "1704067200"
         run: |
           chmod +x build.sh

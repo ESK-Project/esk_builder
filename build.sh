@@ -48,6 +48,12 @@ warn() { echo -e "${YELLOW}[$(date '+%F %T')] [WARN]${NC} $*"; }
 # Send a text message via Telegram Bot API
 telegram_send_msg() {
     local resp err
+
+    # Skip telegram notifying in release build to avoid message flood
+    if [[ $RELEASE_BUILD == true ]]; then
+        return 0
+    fi
+
     resp=$(curl -sX POST https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendMessage \
         -d chat_id="${TG_CHAT_ID}" \
         -d parse_mode="MarkdownV2" \
@@ -64,6 +70,11 @@ telegram_send_msg() {
 # Upload a document with caption via Telegram Bot API
 telegram_upload_file() {
     local resp err
+
+    # Skip telegram notifying in release build to avoid message flood
+    if [[ $RELEASE_BUILD == true ]]; then
+        return 0
+    fi
 
     resp=$(curl -sX POST -F document=@"$1" https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendDocument \
         -F "chat_id=${TG_CHAT_ID}" \
@@ -101,6 +112,7 @@ KERNEL_DEFCONFIG="gki_defconfig"
 KBUILD_BUILD_USER="builder"
 KBUILD_BUILD_HOST="esk"
 TIMEZONE="Asia/Ho_Chi_Minh"
+RELEASE_BUILD="${RELEASE_BUILD:-false}"
 
 # --- Kernel flavour
 _norm_bool() {

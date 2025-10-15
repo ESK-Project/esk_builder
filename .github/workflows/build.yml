@@ -4,6 +4,21 @@ permissions:
   actions: write
 
 on:
+  workflow_call:
+    inputs:
+      KSU:
+        type: string
+        required: true
+      SUSFS:
+        type: string
+        required: true
+      LXC:
+        type: string
+        required: true
+      NOTIFY:
+        type: string
+        required: true
+
   workflow_dispatch:
     inputs:
       KSU:

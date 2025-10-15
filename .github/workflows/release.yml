@@ -1,0 +1,35 @@
+name: Release Build
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        variant:
+          - { name: "Non-KSU", KSU: "NONE", SUSFS: "false", LXC: "false" }
+          - { name: "Non-KSU-LXC", KSU: "NONE", SUSFS: "false", LXC: "true" }
+          - { name: "KSU", KSU: "OFFICIAL", SUSFS: "false", LXC: "false" }
+          - { name: "KSU-SUSFS", KSU: "OFFICIAL", SUSFS: "true", LXC: "false" }
+          - { name: "KSU-LXC", KSU: "OFFICIAL", SUSFS: "false", LXC: "true" }
+          - { name: "KSU-SUSFS-LXC", KSU: "OFFICIAL", SUSFS: "true", LXC: "true" }
+          - { name: "KSUN", KSU: "NEXT", SUSFS: "false", LXC: "false" }
+          - { name: "KSUN-SUSFS", KSU: "NEXT", SUSFS: "true", LXC: "false" }
+          - { name: "KSUN-LXC", KSU: "NEXT", SUSFS: "false", LXC: "true" }
+          - { name: "KSUN-SUSFS-LXC", KSU: "NEXT", SUSFS: "true", LXC: "true" }
+          - { name: "SUKISU", KSU: "SUKI", SUSFS: "false", LXC: "false" }
+          - { name: "SUKISU-SUSFS", KSU: "SUKI", SUSFS: "true", LXC: "false" }
+          - { name: "SUKISU-LXC", KSU: "SUKI", SUSFS: "false", LXC: "true" }
+          - { name: "SUKISU-SUSFS-LXC", KSU: "SUKI", SUSFS: "true",LXC: "true" }
+    name: Build ${{ matrix.variant.name }} variant
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      KSU: ${{ matrix.variant.KSU }}
+      SUSFS: ${{ matrix.variant.SUSFS }}
+      LXC: ${{ matrix.variant.LXC }}
+      RELEASE_BUILD: true

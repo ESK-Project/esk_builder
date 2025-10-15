@@ -111,7 +111,7 @@ _norm_bool() {
         *) echo "false" ;;
     esac
 }
-# KernelSU variant: NONE | KSU | NEXT | SUKI
+# KernelSU variant: NONE | OFFICIAL | NEXT | SUKI
 KSU="${KSU:-NONE}"
 # Include SuSFS?
 SUSFS="$(_norm_bool "${SUSFS:-false}")"
@@ -193,8 +193,8 @@ info "Validating environment variables..."
 # Validate KernelSU variant
 KSU="${KSU^^}"
 case "$KSU" in
-    NONE | KSU | NEXT | SUKI) ;;
-    *) error "Invalid KSU='$KSU' (expected: NONE|KSU|NEXT|SUKI)" ;;
+    NONE | OFFICIAL | NEXT | SUKI) ;;
+    *) error "Invalid KSU='$KSU' (expected: NONE|OFFICIAL|NEXT|SUKI)" ;;
 esac
 ksu_included=true
 [[ $KSU == "NONE" ]] && ksu_included=false
@@ -307,6 +307,7 @@ kernel_patch() {
 if [[ $ksu_included == true ]]; then
     info "Setup KernelSU"
     case "$KSU" in
+        "OFFICIAL") install_ksu tiann/tiann main ;;
         "NEXT") install_ksu KernelSU-Next/KernelSU-Next next ;;
         "SUKI") install_ksu SukiSU-Ultra/SukiSU-Ultra "$(if [[ $SUSFS == "true" ]]; then echo "susfs-main"; else echo "nongki"; fi)" ;;
     esac
@@ -341,16 +342,23 @@ if [[ $SUSFS == "true" ]]; then
     patch -p1 < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
     SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
 
+    if [[ $KSU == "NEXT" || $KSU == "OFFICIAL" ]]; then
+        case "$KSU" in
+            "NEXT") cd KernelSU-Next ;;
+            "OFFICIAL") cd KernelSU ;;
+        esac
+        info "Apply KernelSU-side SuSFS patches ($KSU)"
+        kernel_patch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
+    fi
+
     if [[ $KSU == "NEXT" ]]; then
-        info "Apply SuSFS patches to KernelSU (NEXT)"
+        info "Apply SuSFS fix patches for KernelSU Next"
         WILD_PATCHES="$WORKSPACE/wild_patches"
         SUSFS_FIX_PATCHES="$WILD_PATCHES/next/susfs_fix_patches/$SUSFS_VERSION"
         git_clone "github.com:WildKernels/kernel_patches@main" "$WILD_PATCHES"
         if [ ! -d "$SUSFS_FIX_PATCHES" ]; then
             error "SuSFS fix patches are unavailable for SuSFS $SUSFS_VERSION"
         fi
-        cd KernelSU-Next
-        kernel_patch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
         for patch in "$SUSFS_FIX_PATCHES"/*.patch; do
             kernel_patch < "$patch"
         done

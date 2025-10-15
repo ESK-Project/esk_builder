@@ -307,7 +307,7 @@ kernel_patch() {
 if [[ $ksu_included == true ]]; then
     info "Setup KernelSU"
     case "$KSU" in
-        "OFFICIAL") install_ksu tiann/tiann main ;;
+        "OFFICIAL") install_ksu tiann/KernelSU main ;;
         "NEXT") install_ksu KernelSU-Next/KernelSU-Next next ;;
         "SUKI") install_ksu SukiSU-Ultra/SukiSU-Ultra "$(if [[ $SUSFS == "true" ]]; then echo "susfs-main"; else echo "nongki"; fi)" ;;
     esac

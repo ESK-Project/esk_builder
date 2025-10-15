@@ -17,10 +17,26 @@ NC='\033[0m'
 # Escape a string for Telegram MarkdownV2
 escape_md_v2() {
     local s=$*
-    s=${s//\\/\\\\}; s=${s//_/\\_};  s=${s//\*/\\*}; s=${s//\[/\\[}; s=${s//\]/\\]}
-    s=${s//\(/\\(}; s=${s//\)/\\)}; s=${s//~/\\~}; s=${s//\`/\\\`}; s=${s//>/\\>}
-    s=${s//#/\\#};  s=${s//+/\\+};  s=${s//-/\\-}; s=${s//= /\\=}; s=${s//=/\\=}; s=${s//|/\\|}
-    s=${s//\{/\\\{}; s=${s//\}/\\\}}; s=${s//\./\\.}; s=${s//\!/\\!}
+    s=${s//\\/\\\\}
+    s=${s//_/\\_}
+    s=${s//\*/\\*}
+    s=${s//\[/\\[}
+    s=${s//\]/\\]}
+    s=${s//\(/\\(}
+    s=${s//\)/\\)}
+    s=${s//~/\\~}
+    s=${s//\`/\\\`}
+    s=${s//>/\\>}
+    s=${s//#/\\#}
+    s=${s//+/\\+}
+    s=${s//-/\\-}
+    s=${s//= /\\=}
+    s=${s//=/\\=}
+    s=${s//|/\\|}
+    s=${s//\{/\\\{}
+    s=${s//\}/\\\}}
+    s=${s//\./\\.}
+    s=${s//\!/\\!}
     echo "$s"
 }
 
@@ -48,7 +64,7 @@ telegram_send_msg() {
 # Upload a document with caption via Telegram Bot API
 telegram_upload_file() {
     local resp err
-    
+
     resp=$(curl -sX POST -F document=@"$1" https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendDocument \
         -F "chat_id=${TG_CHAT_ID}" \
         -F "parse_mode=MarkdownV2" \
@@ -188,15 +204,14 @@ sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
 # Notify Telegram
 start_msg=$(
-  cat << EOF
+    cat << EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
 
 *Kernel*: $(escape_md_v2 "$KERNEL_NAME")
 *Defconfig*: $(escape_md_v2 "$KERNEL_DEFCONFIG")
 *Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
-*Compiler*: $(escape_md_v2 "$KBUILD_COMPILER_STRING")
 *KSU*: $(escape_md_v2 "$KSU")
-*SuSFS*: $(escape_md_v2 "$SUSFS" )
+*SuSFS*: $(escape_md_v2 "$SUSFS")
 *LXC*: $(escape_md_v2 "$LXC")
 *Jobs*: $(escape_md_v2 "$JOBS")
 EOF
@@ -283,7 +298,7 @@ clang_lto() {
 
 # Convenient wrapper for patch
 kernel_patch() {
-  patch -p1 --forward --fuzz=3 --no-backup-if-mismatch
+    patch -p1 --forward --fuzz=3 --no-backup-if-mismatch
 }
 
 ### Pre-build ######################################################################
@@ -384,7 +399,7 @@ if [[ $KSU == "SUKI" ]]; then
     LATEST_SUKISU_PATCH=$(curl -s "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
     curl -Ls "$LATEST_SUKISU_PATCH" -o patch_linux
     chmod a+x ./patch_linux
-    
+
     sudo ./patch_linux
     mv oImage Image
 
@@ -395,7 +410,30 @@ fi
 info "Compressing kernel image..."
 7z a -t7z -m0=lzma2 -mx=9 -md=64m -mfb=128 -mmt=on Image.7z ./Image
 rm -rf ./Image
-success "Compressed kernel image!"
+
+info "Compressing static binaries with upx..."
+UPX_LIST=(
+    tools/7za
+    tools/busybox
+    tools/fec
+    tools/httools_static
+    tools/lptools_static
+    tools/magiskboot
+    tools/magiskpolicy
+    tools/snapshotupdater_static
+)
+
+for binary in "${UPX_LIST[@]}"; do
+    file="$ANYKERNEL_DEST/$binary"
+
+    [[ -f $file && -x $file ]] || continue
+
+    if upx -9 --lzma --no-progress "$file"; then
+        success "[UPX] $(basename "$binary")"
+    else
+        warn "[UPX] Failed: $(basename "$binary")"
+    fi
+done
 
 VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
@@ -413,7 +451,7 @@ out_dir=$WORKSPACE
 EOF
 
 result_caption=$(
-  cat << EOF
+    cat << EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
 *Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -423,7 +461,7 @@ result_caption=$(
 • Linux: $(escape_md_v2 "$KERNEL_VERSION")
 • Date: $(escape_md_v2 "$KBUILD_BUILD_TIMESTAMP")
 • KernelSU: $(escape_md_v2 "$KSU")
-• SuSFS: $( [[ "$SUSFS" == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "None" )
+• SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "None")
 • Compiler: $(escape_md_v2 "$KBUILD_COMPILER_STRING")
 
 *Artifact*

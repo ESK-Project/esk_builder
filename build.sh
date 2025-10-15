@@ -414,7 +414,6 @@ rm -rf ./Image
 info "Compressing static binaries with upx..."
 UPX_LIST=(
     tools/7za
-    tools/busybox
     tools/fec
     tools/httools_static
     tools/lptools_static

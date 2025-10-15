@@ -311,11 +311,6 @@ clang_lto() {
     regenerate_defconfig
 }
 
-# Convenient wrapper for patch
-kernel_patch() {
-    patch -p1 --forward --fuzz=3 --no-backup-if-mismatch
-}
-
 ### Pre-build ######################################################################
 
 # KernelSU setup
@@ -329,10 +324,10 @@ if [[ $ksu_included == true ]]; then
 
     info "Apply KernelSU manual hook patch"
     if [[ $KSU == "SUKI" ]]; then
-        kernel_patch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
+        patch -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
         config --disable CONFIG_KSU_SUSFS_SUS_SU
     elif [[ $KSU == "NEXT" ]]; then
-        kernel_patch < "$KERNEL_PATCHES/next/manual_hooks.patch"
+        patch -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/next/manual_hooks.patch"
         config --disable CONFIG_KSU_SUSFS_SUS_SU
     fi
 
@@ -354,7 +349,7 @@ if [[ $SUSFS == "true" ]]; then
     git_clone "gitlab.com:simonpunk/susfs4ksu@$SUSFS_BRANCH" "$SUSFS_DIR"
     cp -R "$SUSFS_PATCHES"/fs/* ./fs
     cp -R "$SUSFS_PATCHES"/include/* ./include
-    patch -p1 < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
+    patch -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
     SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
 
     if [[ $KSU == "NEXT" || $KSU == "OFFICIAL" ]]; then
@@ -363,7 +358,7 @@ if [[ $SUSFS == "true" ]]; then
             "OFFICIAL") cd KernelSU ;;
         esac
         info "Apply KernelSU-side SuSFS patches ($KSU)"
-        kernel_patch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
+        patch -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
     fi
 
     if [[ $KSU == "NEXT" ]]; then
@@ -375,7 +370,7 @@ if [[ $SUSFS == "true" ]]; then
             error "SuSFS fix patches are unavailable for SuSFS $SUSFS_VERSION"
         fi
         for patch in "$SUSFS_FIX_PATCHES"/*.patch; do
-            kernel_patch < "$patch"
+            patch -p1 --no-backup-if-mismatch < "$patch"
         done
     fi
     
@@ -389,7 +384,7 @@ fi
 # LXC support
 if [[ $LXC == "true" ]]; then
     info "Apply LXC patch"
-    kernel_patch < "$KERNEL_PATCHES/lxc_support.patch"
+    patch -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/lxc_support.patch"
     success "LXC patch applied"
 fi
 

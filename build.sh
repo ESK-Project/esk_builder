@@ -40,6 +40,9 @@ escape_md_v2() {
     echo "$s"
 }
 
+# GitHub Action release build
+RELEASE_BUILD="${RELEASE_BUILD:-false}"
+
 # Logging functions
 info() { echo -e "${BLUE}[$(date '+%F %T')] [INFO]${NC} $*"; }
 success() { echo -e "${GREEN}[$(date '+%F %T')] [SUCCESS]${NC} $*"; }
@@ -112,7 +115,6 @@ KERNEL_DEFCONFIG="gki_defconfig"
 KBUILD_BUILD_USER="builder"
 KBUILD_BUILD_HOST="esk"
 TIMEZONE="Asia/Ho_Chi_Minh"
-RELEASE_BUILD="${RELEASE_BUILD:-false}"
 
 # --- Kernel flavour
 _norm_bool() {

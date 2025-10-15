@@ -249,6 +249,7 @@ git_clone "$ANYKERNEL_REPO" "$ANYKERNEL_DEST"
 
 info "Fetch AOSP Clang toolchain"
 clang_url=$(curl -s "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
+    -H "Authorization: Bearer $GH_TOKEN" \
     | grep "browser_download_url" \
     | grep ".tar.gz" \
     | cut -d '"' -f 4)
@@ -419,7 +420,9 @@ cp -p "${KERNEL_OUT}/arch/arm64/boot/Image" "$ANYKERNEL_DEST"/
 if [[ $KSU == "SUKI" ]]; then
     info "Patching KPM for SukiSU variant..."
 
-    LATEST_SUKISU_PATCH=$(curl -s "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
+    LATEST_SUKISU_PATCH=$(curl -s "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" \
+                        -H "Authorization: Bearer $GH_TOKEN" \
+                        | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
     curl -Ls "$LATEST_SUKISU_PATCH" -o patch_linux
     chmod a+x ./patch_linux
 

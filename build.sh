@@ -115,6 +115,8 @@ KERNEL_DEFCONFIG="gki_defconfig"
 KBUILD_BUILD_USER="builder"
 KBUILD_BUILD_HOST="esk"
 TIMEZONE="Asia/Ho_Chi_Minh"
+RELEASE_REPO="ESK-Project/esk-releases"
+RELEASE_BRANCH="main"
 
 # --- Kernel flavour
 _norm_bool() {

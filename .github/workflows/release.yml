@@ -129,3 +129,47 @@ jobs:
           generate_release_notes: false
           target_commitish: ${{ env.RELEASE_BRANCH }}
           files: release_files/**/*
+
+      - name: Notify Telegram
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          escape_md_v2() {
+            local s=$*
+            s=${s//\\/\\\\}; s=${s//_/\\_}; s=${s//\*/\\*}; s=${s//\[/\\[}; s=${s//\]/\\]}; s=${s//\(/\\(}; s=${s//\)/\\)}
+            s=${s//\`/\\\`}; s=${s//>/\\>}; s=${s//#/\\#}; s=${s//+/\\+}; s=${s//-/\\-}; s=${s//= /\\=}; s=${s//=/\\=}
+            s=${s//|/\\|}; s=${s//\{/\\\{}; s=${s//\}/\\\}}; s=${s//\./\\.}; s=${s//\!/\\!}; s=${s//~/\\~}
+            echo "$s"
+          }
+
+          telegram_send_msg() {
+            local resp err
+
+            resp=$(curl -sX POST https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendMessage \
+                -d chat_id="${TG_CHAT_ID}" \
+                -d parse_mode="MarkdownV2" \
+                -d disable_web_page_preview=true \
+                -d text="$1")
+
+            if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
+                err=$(echo "$resp" | jq -r '.description')
+                echo "::error::telegram_send_msg(): failed to send message: ${err:-Unknown error} $*" >&2
+                exit 1
+            fi
+          }
+
+          message=$(
+              cat<<-EOF
+                *$(escape_md_v2 "$KERNEL_NAME Release Build Completed!")*
+
+                **Kernel Version**: $(escape_md_v2 ${{ env.KERNEL_VER }})
+                **SuSFS**: $(escape_md_v2 ${{ env.SUSFS_VER }})
+                **Toolchain**: $(escape_md_v2 ${{ env.TOOLCHAIN }})
+                **Build date**: $(escape_md_v2 ${{ env.BUILD_DATE }})
+
+                [GitHub Release]($(escape_md_v2 https://github.com/${{ env.RELEASE_REPO }}/releases/${{ env.RELEASE_TAG }}))
+              EOF
+          )
+          
+          telegram_send_msg "$message"

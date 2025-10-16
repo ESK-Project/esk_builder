@@ -77,6 +77,16 @@ jobs:
       TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
       TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+    outputs:
+      kernel_version: ${{ steps.build.outputs.kernel_version }}
+      susfs_version: ${{ steps.build.outputs.susfs_version }}
+      toolchain: ${{ steps.build.outputs.toolchain }}
+      build_date: ${{ steps.build.outputs.build_date }}
+      release_repo: ${{ steps.build.outputs.release_repo }}
+      release_branch: ${{ steps.build.outputs.release_branch }}
+      kernel_name: ${{ steps.build.outputs.kernel_name }}
+
     steps:
       - name: Fail SUSFS requirement check
         if: ${{ inputs.SUSFS == 'true' && inputs.KSU == 'NONE' }}
@@ -116,7 +126,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq \
-            bc bison ccache curl flex git tar wget aria2 jq zip 7zip upx build-essential
+            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential
 
       - name: Prepare ccache
         run: |

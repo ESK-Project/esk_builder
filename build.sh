@@ -462,16 +462,23 @@ done
 VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
-PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT-$(date '+%F')"
+PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 zip -r9 "$WORKSPACE/$PACKAGE_NAME.zip" ./*
 cd "$WORKSPACE"
 
 info "Writing build metadata to github.env"
 cat > "$WORKSPACE/github.env" << EOF
+kernel_version=$KERNEL_VERSION
+kernel_name=$KERNEL_NAME
+toolchain=$TOOLCHAIN
+build_date=$KBUILD_BUILD_TIMESTAMP
 package_name=$PACKAGE_NAME
+susfs_version=$SUSFS_VERSION
 variant=$VARIANT
 name=$KERNEL_NAME
 out_dir=$WORKSPACE
+release_repo=$RELEASE_REPO
+release_branch=$RELEASE_BRANCH
 EOF
 
 result_caption=$(

@@ -19,6 +19,29 @@ on:
         type: string
         required: false
 
+    outputs:
+      version:
+        description: "Kernel version"
+        value: ${{ jobs.build.outputs.kernel_version }}
+      susfs_version:
+        description: "SUSFS version"
+        value: ${{ jobs.build.outputs.susfs_version }}
+      toolchain:
+        description: "Toolchain"
+        value: ${{ jobs.build.outputs.toolchain }}
+      build_time:
+        description: "Build timestamp"
+        value: ${{ jobs.build.outputs.build_date }}
+      release_repo:
+        description: "Release repo"
+        value: ${{ jobs.build.outputs.release_repo }}
+      release_branch:
+        description: "Release branch"
+        value: ${{ jobs.build.outputs.release_branch }}
+      kernel_name:
+        description: "Kernel name"
+        value: ${{ jobs.build.outputs.kernel_name }}
+
   workflow_dispatch:
     inputs:
       KSU:
@@ -130,6 +153,10 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh
+          
+          # Import github.env file to $GITHUB_OUTPUT
+          # We are using heredoc to create github.env
+          # So cat directly to $GITHUB_OUTPUT is acceptable
           file="$GITHUB_WORKSPACE/github.env"
           [[ -f "$file" ]] || { echo "::error::github.env missing"; exit 1; }
           cat "$file" >> "$GITHUB_OUTPUT"

@@ -325,10 +325,10 @@ if [[ $ksu_included == true ]]; then
 
     info "Apply KernelSU manual hook patch"
     if [[ $KSU == "SUKI" ]]; then
-        patch -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
+        patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
         config --disable CONFIG_KSU_SUSFS_SUS_SU
     elif [[ $KSU == "NEXT" ]]; then
-        patch -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/next/manual_hooks.patch"
+        patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/next/manual_hooks.patch"
         config --disable CONFIG_KSU_SUSFS_SUS_SU
     fi
 
@@ -350,7 +350,7 @@ if [[ $SUSFS == "true" ]]; then
     git_clone "gitlab.com:simonpunk/susfs4ksu@$SUSFS_BRANCH" "$SUSFS_DIR"
     cp -R "$SUSFS_PATCHES"/fs/* ./fs
     cp -R "$SUSFS_PATCHES"/include/* ./include
-    patch -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
+    patch -s -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
     SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
 
     if [[ $KSU == "NEXT" || $KSU == "OFFICIAL" ]]; then
@@ -359,7 +359,7 @@ if [[ $SUSFS == "true" ]]; then
             "OFFICIAL") cd KernelSU ;;
         esac
         info "Apply KernelSU-side SuSFS patches ($KSU)"
-        patch -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
+        patch -s -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
     fi
 
     if [[ $KSU == "NEXT" ]]; then
@@ -371,7 +371,7 @@ if [[ $SUSFS == "true" ]]; then
             error "SuSFS fix patches are unavailable for SuSFS $SUSFS_VERSION"
         fi
         for patch in "$SUSFS_FIX_PATCHES"/*.patch; do
-            patch -p1 --no-backup-if-mismatch < "$patch"
+            patch -s -p1 --no-backup-if-mismatch < "$patch"
         done
     fi
     
@@ -385,14 +385,14 @@ fi
 # LXC support
 if [[ $LXC == "true" ]]; then
     info "Apply LXC patch"
-    patch -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/lxc_support.patch"
+    patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/lxc_support.patch"
     success "LXC patch applied"
 fi
 
 # Baseband Guard (BBG) LSM (for KernelSU variants)
 if [[ $ksu_included == true ]]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
-    wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash >/dev/null 2>&1
+    wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash >/dev/null 2>&1
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
     config --enable CONFIG_BBG
     success "Added BBG!"
@@ -404,9 +404,26 @@ info "Generate defconfig: $KERNEL_DEFCONFIG"
 make "${MAKE_ARGS[@]}" -s "$KERNEL_DEFCONFIG"
 success "Defconfig generated"
 
-info "Build kernel: Image"
+# GitHub Action helper
+group_start() {
+  local title="$*"
+  if [[ $GITHUB_ACTIONS == "true" ]]; then
+    echo "::group::$title"
+  else
+    info "$title"
+  fi
+}
+
+group_end() {
+  if [[ $GITHUB_ACTIONS == "true" ]]; then
+    echo '::endgroup::'
+  fi
+}
+
+group_start "Build kernel: Image"
 clang_lto "$CLANG_LTO"
 make "${MAKE_ARGS[@]}" Image
+group_end
 success "Kernel built successfully"
 
 ### Post-build #####################################################################
@@ -455,8 +472,8 @@ for binary in "${UPX_LIST[@]}"; do
 
     [[ -f $file && -x $file ]] || continue
 
-    if upx -q -9 --lzma --no-progress "$file"; then
-        success "[UPX] $(basename "$binary")"
+    if upx -9 --lzma --no-progress "$file" >/dev/null 2>&1; then
+        success "[UPX] Compressed: $(basename "$binary")"
     else
         warn "[UPX] Failed: $(basename "$binary")"
     fi

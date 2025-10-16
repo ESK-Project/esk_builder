@@ -127,6 +127,7 @@ jobs:
             > [!IMPORTANT]
             > For installation instructions and issue reporting guidelines, please refer to the README.md
           generate_release_notes: false
+          prerelease: true
           target_commitish: ${{ env.RELEASE_BRANCH }}
           files: release_files/**/*
 

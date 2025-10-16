@@ -119,7 +119,7 @@ jobs:
             |--------|-------------|
             | **-OFFICIAL** | Original KernelSU |
             | **-SUKI** | SukiSU Ultra |
-            | **-KSUN** | KernelSU Next |
+            | **-NEXT** | KernelSU Next |
             | **-NONE** | No KernelSU |
             | **-SUSFS** | SUSFS Support |
             | **-LXC** | LXC Support |

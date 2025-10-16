@@ -160,16 +160,16 @@ jobs:
           }
 
           message=$(
-              cat<<-EOF
-                *$(escape_md_v2 "$KERNEL_NAME Release Build Completed!")*
+              cat<<EOF
+          *$(escape_md_v2 "$KERNEL_NAME Release Build Completed!")*
 
-                **Kernel Version**: $(escape_md_v2 ${{ env.KERNEL_VER }})
-                **SuSFS**: $(escape_md_v2 ${{ env.SUSFS_VER }})
-                **Toolchain**: $(escape_md_v2 ${{ env.TOOLCHAIN }})
-                **Build date**: $(escape_md_v2 ${{ env.BUILD_DATE }})
+          *Kernel Version*: $(escape_md_v2 ${{ env.KERNEL_VER }})
+          *SuSFS*: $(escape_md_v2 ${{ env.SUSFS_VER }})
+          *Toolchain*: $(escape_md_v2 ${{ env.TOOLCHAIN }})
+          *Build date*: $(escape_md_v2 ${{ env.BUILD_DATE }})
 
-                [GitHub Release]($(escape_md_v2 https://github.com/${{ env.RELEASE_REPO }}/releases/${{ env.RELEASE_TAG }}))
-              EOF
+          [GitHub Release]($(escape_md_v2 https://github.com/${{ env.RELEASE_REPO }}/releases/${{ env.RELEASE_TAG }}))
+          EOF
           )
           
           telegram_send_msg "$message"

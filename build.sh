@@ -472,7 +472,7 @@ info "Writing build metadata to github.env"
 cat > "$WORKSPACE/github.env" << EOF
 kernel_version=$KERNEL_VERSION
 kernel_name=$KERNEL_NAME
-toolchain=$TOOLCHAIN
+toolchain=$KBUILD_COMPILER_STRING
 build_date=$KBUILD_BUILD_TIMESTAMP
 package_name=$PACKAGE_NAME
 susfs_version=$SUSFS_VERSION

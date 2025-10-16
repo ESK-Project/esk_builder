@@ -20,7 +20,7 @@ on:
         required: false
 
     outputs:
-      version:
+      kernel_version:
         description: "Kernel version"
         value: ${{ jobs.build.outputs.kernel_version }}
       susfs_version:
@@ -29,7 +29,7 @@ on:
       toolchain:
         description: "Toolchain"
         value: ${{ jobs.build.outputs.toolchain }}
-      build_time:
+      build_date:
         description: "Build timestamp"
         value: ${{ jobs.build.outputs.build_date }}
       release_repo:

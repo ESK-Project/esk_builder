@@ -200,7 +200,6 @@ git_clone() {
 # Stream stderr/stdout to both terminal and file
 exec > >(tee "$LOGFILE") 2>&1
 
-# Require tokens up-front
 info "Validating environment variables..."
 : "${GH_TOKEN:?Required GitHub PAT missing: GH_TOKEN}"
 : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
@@ -289,7 +288,7 @@ config() {
 
 # Regenerate defconfig
 regenerate_defconfig() {
-    make "${MAKE_ARGS[@]}" olddefconfig
+    make "${MAKE_ARGS[@]}" -s olddefconfig
 }
 
 # Modify Clang LTO mode and regenerate config
@@ -393,20 +392,22 @@ fi
 # Baseband Guard (BBG) LSM (for KernelSU variants)
 if [[ $ksu_included == true ]]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
-    wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+    wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash >/dev/null 2>&1
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
     config --enable CONFIG_BBG
+    success "Added BBG!"
 fi
 
 ### Build ##########################################################################
 
 info "Generate defconfig: $KERNEL_DEFCONFIG"
-make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG"
+make "${MAKE_ARGS[@]}" -s "$KERNEL_DEFCONFIG"
+success "Defconfig generated"
 
 info "Build kernel: Image"
 clang_lto "$CLANG_LTO"
 make "${MAKE_ARGS[@]}" Image
-success "Kernel built successfully!"
+success "Kernel built successfully"
 
 ### Post-build #####################################################################
 
@@ -423,11 +424,11 @@ if [[ $KSU == "SUKI" ]]; then
     curl -Ls "$LATEST_SUKISU_PATCH" -o patch_linux
     chmod a+x ./patch_linux
 
-    sudo ./patch_linux
+    sudo ./patch_linux >/dev/null 2>&1
     mv oImage Image
 
     rm -rf ./patch_linux
-    success "Patched KPM for SukiSU variant successfully!"
+    success "Patched KPM for SukiSU variant"
 fi
 
 info "Compressing kernel image..."
@@ -454,7 +455,7 @@ for binary in "${UPX_LIST[@]}"; do
 
     [[ -f $file && -x $file ]] || continue
 
-    if upx -9 --lzma --no-progress "$file"; then
+    if upx -q -9 --lzma --no-progress "$file"; then
         success "[UPX] $(basename "$binary")"
     else
         warn "[UPX] Failed: $(basename "$binary")"

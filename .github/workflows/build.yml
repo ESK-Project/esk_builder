@@ -126,7 +126,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq \
-            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential
+            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential advancecomp
 
       - name: Prepare ccache
         run: |

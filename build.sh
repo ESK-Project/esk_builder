@@ -93,6 +93,7 @@ telegram_upload_file() {
 
 # Unified error handler
 error() {
+    trap - ERR # Disable the ERR trap to prevent recursion
     echo -e "${RED}[$(date '+%F %T')] [ERROR]${NC} $*" >&2
 
     local msg
@@ -173,7 +174,7 @@ install_ksu() {
     local url
     url="https://raw.githubusercontent.com/$repo/$ref/kernel/setup.sh"
     info "Install KernelSU: $repo@$ref"
-    curl -LSs "$url" | bash -s "$ref"
+    curl -fsSL "$url" | bash -s "$ref"
 }
 
 # Recreate a directory
@@ -249,7 +250,7 @@ info "Clone AnyKernel3: $ANYKERNEL_REPO -> $ANYKERNEL_DEST"
 git_clone "$ANYKERNEL_REPO" "$ANYKERNEL_DEST"
 
 info "Fetch AOSP Clang toolchain"
-clang_url=$(curl -s "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
+clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
     -H "Authorization: Bearer $GH_TOKEN" \
     | grep "browser_download_url" \
     | grep ".tar.gz" \
@@ -272,7 +273,13 @@ export KBUILD_BUILD_HOST
 
 cd "$KERNEL_DEST"
 KERNEL_VERSION=$(make -s kernelversion)
-DEFCONFIG_FILE=$(realpath "$(find ./arch/arm64/configs -name "$KERNEL_DEFCONFIG")")
+
+DEFCONFIG_DIR="$KERNEL_DEST/arch/arm64/configs"
+DEFCONFIG_FILE="$DEFCONFIG_DIR/$KERNEL_DEFCONFIG"
+if [ ! -f "$DEFCONFIG_FILE" ]; then
+  DEFCONFIG_FILE="$(find "$DEFCONFIG_DIR" -type f -name "$KERNEL_DEFCONFIG" -print -quit)"
+  [ -n "$DEFCONFIG_FILE" ] || error "Defconfig not found: $KERNEL_DEFCONFIG"
+fi
 
 ### Kernel helpers #################################################################
 
@@ -401,55 +408,49 @@ fi
 ### Build ##########################################################################
 
 info "Generate defconfig: $KERNEL_DEFCONFIG"
-make "${MAKE_ARGS[@]}" -s "$KERNEL_DEFCONFIG"
+make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" >/dev/null 2>&1
 success "Defconfig generated"
 
-# GitHub Action helper
-group_start() {
-  local title="$*"
-  if [[ $GITHUB_ACTIONS == "true" ]]; then
-    echo "::group::$title"
-  else
-    info "$title"
-  fi
-}
-
-group_end() {
-  if [[ $GITHUB_ACTIONS == "true" ]]; then
-    echo '::endgroup::'
-  fi
-}
-
-group_start "Build kernel: Image"
 clang_lto "$CLANG_LTO"
 make "${MAKE_ARGS[@]}" Image
-group_end
 success "Kernel built successfully"
 
 ### Post-build #####################################################################
 
 info "Packaging AnyKernel3 zip..."
 cd "$ANYKERNEL_DEST"
-cp -p "${KERNEL_OUT}/arch/arm64/boot/Image" "$ANYKERNEL_DEST"/
 
 if [[ $KSU == "SUKI" ]]; then
     info "Patching KPM for SukiSU variant..."
 
-    LATEST_SUKISU_PATCH=$(curl -s "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" \
+    tmpdir="$(mktemp -d)"
+    cd "$tmpdir"
+    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$tmpdir"/ 
+
+    LATEST_SUKISU_PATCH=$(curl -fsSL "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" \
                         -H "Authorization: Bearer $GH_TOKEN" \
                         | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
-    curl -Ls "$LATEST_SUKISU_PATCH" -o patch_linux
-    chmod a+x ./patch_linux
 
-    sudo ./patch_linux >/dev/null 2>&1
-    mv oImage Image
+    [[ -n $LATEST_SUKISU_PATCH ]] || error "Could not find patch_linux in the latest release"
+
+    curl -fsSL "$LATEST_SUKISU_PATCH" -o patch_linux
+    chmod +x ./patch_linux
+
+    ./patch_linux >/dev/null 2>&1
+    [[ -f oImage ]] || error "patch_linux did not produce oImage"
+    mv oImage "$ANYKERNEL_DEST/Image"
 
     rm -rf ./patch_linux
+    cd "$ANYKERNEL_DEST"
+    rm -rf "$tmpdir"
+
     success "Patched KPM for SukiSU variant"
+else
+    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL_DEST"/
 fi
 
 info "Compressing kernel image..."
-zstd -19 -T0 --no-progress -o Image.zst Image
+zstd -19 -T0 --no-progress -o Image.zst Image >/dev/null 2>&1
 
 # Generate sha256 hash for Image.zst
 sha256sum Image.zst > Image.zst.sha256
@@ -483,7 +484,8 @@ VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
-zip -r9 "$WORKSPACE/$PACKAGE_NAME.zip" ./*
+zip -r9q -T -X -y -n .zst "$WORKSPACE/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
+advzip -z -4 "$WORKSPACE/$PACKAGE_NAME.zip"
 cd "$WORKSPACE"
 
 info "Writing build metadata to github.env"

@@ -437,7 +437,7 @@ if [[ $KSU == "SUKI" ]]; then
     chmod +x ./patch_linux
 
     ./patch_linux >/dev/null 2>&1
-    [[ -f oImage ]] || error "patch_linux did not produce oImage"
+    [[ -f oImage ]] || error "patch_linux failed to produce patched Image"
     mv oImage "$ANYKERNEL_DEST/Image"
 
     rm -rf ./patch_linux
@@ -451,11 +451,10 @@ fi
 
 info "Compressing kernel image..."
 zstd -19 -T0 --no-progress -o Image.zst Image >/dev/null 2>&1
+rm -rf ./Image
 
 # Generate sha256 hash for Image.zst
 sha256sum Image.zst > Image.zst.sha256
-
-rm -rf ./Image
 
 info "Compressing static binaries with upx..."
 UPX_LIST=(
@@ -471,7 +470,7 @@ UPX_LIST=(
 for binary in "${UPX_LIST[@]}"; do
     file="$ANYKERNEL_DEST/$binary"
 
-    [[ -f $file && -x $file ]] || continue
+    [[ -f $file ]] || continue
 
     if upx -9 --lzma --no-progress "$file" >/dev/null 2>&1; then
         success "[UPX] Compressed: $(basename "$binary")"
@@ -485,7 +484,6 @@ VARIANT="$KSU"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 zip -r9q -T -X -y -n .zst "$WORKSPACE/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
-advzip -z -4 "$WORKSPACE/$PACKAGE_NAME.zip"
 cd "$WORKSPACE"
 
 info "Writing build metadata to github.env"

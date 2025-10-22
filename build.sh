@@ -344,7 +344,7 @@ if [[ $ksu_included == true ]]; then
     config --enable CONFIG_KSU_MANUAL_HOOK
     config --disable CONFIG_KSU_KPROBES_HOOK
     config --enable CONFIG_KPM
-    config --disable CONFIG_KSU_MANUAL_SU
+    config --enable CONFIG_KSU_MANUAL_SU
     success "KernelSU configured"
 fi
 

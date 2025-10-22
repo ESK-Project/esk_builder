@@ -272,13 +272,13 @@ export KBUILD_BUILD_USER
 export KBUILD_BUILD_HOST
 
 cd "$KERNEL_DEST"
-KERNEL_VERSION=$(make -s kernelversion)
+KERNEL_VERSION=$(make -s kernelversion | cut -d- -f1)
 
 DEFCONFIG_DIR="$KERNEL_DEST/arch/arm64/configs"
 DEFCONFIG_FILE="$DEFCONFIG_DIR/$KERNEL_DEFCONFIG"
 if [ ! -f "$DEFCONFIG_FILE" ]; then
-  DEFCONFIG_FILE="$(find "$DEFCONFIG_DIR" -type f -name "$KERNEL_DEFCONFIG" -print -quit)"
-  [ -n "$DEFCONFIG_FILE" ] || error "Defconfig not found: $KERNEL_DEFCONFIG"
+    DEFCONFIG_FILE="$(find "$DEFCONFIG_DIR" -type f -name "$KERNEL_DEFCONFIG" -print -quit)"
+    [ -n "$DEFCONFIG_FILE" ] || error "Defconfig not found: $KERNEL_DEFCONFIG"
 fi
 
 ### Kernel helpers #################################################################
@@ -381,7 +381,7 @@ if [[ $SUSFS == "true" ]]; then
             patch -s -p1 --no-backup-if-mismatch < "$patch"
         done
     fi
-    
+
     cd "$KERNEL_DEST"
     config --enable CONFIG_KSU_SUSFS
     success "SuSFS applied!"
@@ -399,7 +399,7 @@ fi
 # Baseband Guard (BBG) LSM (for KernelSU variants)
 if [[ $ksu_included == true ]]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
-    wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash >/dev/null 2>&1
+    wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash > /dev/null 2>&1
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
     config --enable CONFIG_BBG
     success "Added BBG!"
@@ -408,7 +408,7 @@ fi
 ### Build ##########################################################################
 
 info "Generate defconfig: $KERNEL_DEFCONFIG"
-make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" >/dev/null 2>&1
+make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" > /dev/null 2>&1
 success "Defconfig generated"
 
 clang_lto "$CLANG_LTO"
@@ -425,18 +425,18 @@ if [[ $KSU == "SUKI" ]]; then
 
     tmpdir="$(mktemp -d)"
     cd "$tmpdir"
-    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$tmpdir"/ 
+    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$tmpdir"/
 
     LATEST_SUKISU_PATCH=$(curl -fsSL "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" \
-                        -H "Authorization: Bearer $GH_TOKEN" \
-                        | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
+        -H "Authorization: Bearer $GH_TOKEN" \
+        | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
 
     [[ -n $LATEST_SUKISU_PATCH ]] || error "Could not find patch_linux in the latest release"
 
     curl -fsSL "$LATEST_SUKISU_PATCH" -o patch_linux
     chmod +x ./patch_linux
 
-    ./patch_linux >/dev/null 2>&1
+    ./patch_linux > /dev/null 2>&1
     [[ -f oImage ]] || error "patch_linux failed to produce patched Image"
     mv oImage "$ANYKERNEL_DEST/Image"
 
@@ -450,7 +450,7 @@ else
 fi
 
 info "Compressing kernel image..."
-zstd -19 -T0 --no-progress -o Image.zst Image >/dev/null 2>&1
+zstd -19 -T0 --no-progress -o Image.zst Image > /dev/null 2>&1
 rm -rf ./Image
 
 # Generate sha256 hash for Image.zst
@@ -472,7 +472,7 @@ for binary in "${UPX_LIST[@]}"; do
 
     [[ -f $file ]] || continue
 
-    if upx -9 --lzma --no-progress "$file" >/dev/null 2>&1; then
+    if upx -9 --lzma --no-progress "$file" > /dev/null 2>&1; then
         success "[UPX] Compressed: $(basename "$binary")"
     else
         warn "[UPX] Failed: $(basename "$binary")"

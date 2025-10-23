@@ -40,8 +40,8 @@ escape_md_v2() {
     echo "$s"
 }
 
-# GitHub Action release build
-RELEASE_BUILD="${RELEASE_BUILD:-false}"
+# Telegram Notify toggle
+TG_NOTIFY="${TG_NOTIFY:-true}"
 
 # Logging functions
 info() { echo -e "${BLUE}[$(date '+%F %T')] [INFO]${NC} $*"; }
@@ -52,8 +52,7 @@ warn() { echo -e "${YELLOW}[$(date '+%F %T')] [WARN]${NC} $*"; }
 telegram_send_msg() {
     local resp err
 
-    # Skip telegram notifying in release build to avoid message flood
-    if [[ $RELEASE_BUILD == true ]]; then
+    if [[ $TG_NOTIFY == false ]]; then
         return 0
     fi
 
@@ -74,8 +73,7 @@ telegram_send_msg() {
 telegram_upload_file() {
     local resp err
 
-    # Skip telegram notifying in release build to avoid message flood
-    if [[ $RELEASE_BUILD == true ]]; then
+    if [[ $TG_NOTIFY == false ]]; then
         return 0
     fi
 
@@ -203,8 +201,11 @@ exec > >(tee "$LOGFILE") 2>&1
 
 info "Validating environment variables..."
 : "${GH_TOKEN:?Required GitHub PAT missing: GH_TOKEN}"
-: "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
-: "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
+if [[ $TG_NOTIFY == true ]]; then
+    : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
+    : "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
+fi
+
 
 # Validate KernelSU variant
 KSU="${KSU^^}"

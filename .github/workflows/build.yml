@@ -168,7 +168,7 @@ jobs:
           KSU: ${{ inputs.KSU }}
           SUSFS: ${{ inputs.SUSFS }}
           LXC: ${{ inputs.LXC }}
-          RELEASE_BUILD: ${{ inputs.TG_NOTIFY }}
+          TG_NOTIFY: ${{ inputs.TG_NOTIFY }}
           SOURCE_DATE_EPOCH: "1704067200"
         run: |
           chmod +x build.sh

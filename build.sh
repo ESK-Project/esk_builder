@@ -328,7 +328,7 @@ if [[ $ksu_included == true ]]; then
     case "$KSU" in
         "OFFICIAL") install_ksu tiann/KernelSU main ;;
         "NEXT") install_ksu KernelSU-Next/KernelSU-Next next ;;
-        "SUKI") install_ksu SukiSU-Ultra/SukiSU-Ultra "$(if [[ $SUSFS == "true" ]]; then echo "susfs-main"; else echo "nongki"; fi)" ;;
+        "SUKI") install_ksu SukiSU-Ultra/SukiSU-Ultra "$(if [[ $SUSFS == "true" ]]; then echo "susfs-main"; else echo "main"; fi)" ;;
     esac
 
     info "Apply KernelSU manual hook patch"

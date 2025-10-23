@@ -130,8 +130,6 @@ _norm_bool() {
 KSU="${KSU:-NONE}"
 # Include SuSFS?
 SUSFS="$(_norm_bool "${SUSFS:-false}")"
-# Apply LXC patch?
-LXC="$(_norm_bool "${LXC:-false}")"
 
 # --- Compiler
 # Clang LTO mode: thin | full
@@ -229,7 +227,6 @@ start_msg=$(
 *Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
 *KSU*: $(escape_md_v2 "$KSU")
 *SuSFS*: $(escape_md_v2 "$SUSFS")
-*LXC*: $(escape_md_v2 "$LXC")
 *Jobs*: $(escape_md_v2 "$JOBS")
 EOF
 )
@@ -390,13 +387,6 @@ else
     config --disable CONFIG_KSU_SUSFS
 fi
 
-# LXC support
-if [[ $LXC == "true" ]]; then
-    info "Apply LXC patch"
-    patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/lxc_support.patch"
-    success "LXC patch applied"
-fi
-
 # Baseband Guard (BBG) LSM (for KernelSU variants)
 if [[ $ksu_included == true ]]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
@@ -482,7 +472,6 @@ done
 
 VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
-[[ $LXC == "true" ]] && VARIANT+="-LXC"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 zip -r9q -T -X -y -n .zst "$WORKSPACE/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
 cd "$WORKSPACE"

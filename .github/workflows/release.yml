@@ -32,7 +32,7 @@ jobs:
       KSU: ${{ matrix.variant.KSU }}
       SUSFS: ${{ matrix.variant.SUSFS }}
       LXC: ${{ matrix.variant.LXC }}
-      RELEASE_BUILD: true
+      TG_NOTIFY: "false"
 
   release:
     name: Create Release

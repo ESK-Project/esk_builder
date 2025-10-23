@@ -120,11 +120,11 @@ jobs:
           }
 
           # Validate secrets
-          [[ -z "$TG_CHAT_ID"  ]] && error "Missing TG_CHAT_ID (Telegram Chat ID)"
+          [[ -z "$GH_TOKEN" ]] && error "Missing GH_TOKEN (Github PAT)"
           
           if [[ "$TG_NOTIFY" == "true" ]]; then
+            [[ -z "$TG_CHAT_ID"  ]] && error "Missing TG_CHAT_ID (Telegram Chat ID)"
             [[ -z "$TG_BOT_TOKEN" ]] && error "Missing TG_BOT_TOKEN (Telegram Bot Token)"
-            [[ -z "$GH_TOKEN" ]] && error "Missing GH_TOKEN (Github PAT)"
           fi
 
           if (( ret )); then

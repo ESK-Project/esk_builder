@@ -106,6 +106,25 @@ EOF
     exit 1
 }
 
+# Bool parsing utils
+norm_bool() {
+    local value=$1;
+    case "${value,,}" in
+        1 | y | yes | t | true | on) echo "true" ;;
+        0 | n | no | f | false | off) echo "false" ;;
+        *) echo "false" ;;
+    esac
+}
+
+parse_bool() {
+    if [[ $1 == "true" ]]; then
+        echo "Enabled"
+    else 
+        echo "Disabled";
+    fi
+}
+
+
 ### Configuration ##################################################################
 
 # --- General
@@ -118,20 +137,12 @@ RELEASE_REPO="ESK-Project/esk-releases"
 RELEASE_BRANCH="main"
 
 # --- Kernel flavour
-_norm_bool() {
-    local v=$1
-    case "${v,,}" in
-        1 | y | yes | t | true | on) echo "true" ;;
-        0 | n | no | f | false | off) echo "false" ;;
-        *) echo "false" ;;
-    esac
-}
 # KernelSU variant: NONE | OFFICIAL | NEXT | SUKI
 KSU="${KSU:-NONE}"
 # Include SuSFS?
-SUSFS="$(_norm_bool "${SUSFS:-false}")"
+SUSFS="$(norm_bool "${SUSFS:-false}")"
 # Apply LXC patch?
-LXC="$(_norm_bool "${LXC:-false}")"
+LXC="$(norm_bool "${LXC:-false}")"
 
 # --- Compiler
 # Clang LTO mode: thin | full
@@ -224,13 +235,12 @@ start_msg=$(
     cat << EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
 
-*Kernel*: $(escape_md_v2 "$KERNEL_NAME")
-*Defconfig*: $(escape_md_v2 "$KERNEL_DEFCONFIG")
-*Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
-*KSU*: $(escape_md_v2 "$KSU")
-*SuSFS*: $(escape_md_v2 "$SUSFS")
-*LXC*: $(escape_md_v2 "$LXC")
-*Jobs*: $(escape_md_v2 "$JOBS")
+• *Defconfig*: $(escape_md_v2 "$KERNEL_DEFCONFIG")
+• *Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
+• *KernelSU*: $(escape_md_v2 "$(parse_bool "$ksu_included") | $KSU")  
+• *SuSFS*: $(parse_bool "$SUSFS")
+• *LXC*: $(parse_bool "$LXC")
+• *Build jobs*: $(escape_md_v2 "$JOBS")
 EOF
 )
 
@@ -250,7 +260,7 @@ git_clone "$KERNEL_REPO" "$KERNEL_DEST"
 info "Clone AnyKernel3: $ANYKERNEL_REPO -> $ANYKERNEL_DEST"
 git_clone "$ANYKERNEL_REPO" "$ANYKERNEL_DEST"
 
-info "Fetch AOSP Clang toolchain"
+info "Fetching AOSP Clang toolchain"
 clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
     -H "Authorization: Bearer $GH_TOKEN" \
     | grep "browser_download_url" \
@@ -265,9 +275,7 @@ rm -rf "$WORKSPACE/clang-archive"
 
 export PATH="${CLANG_BIN}:$PATH"
 
-KBUILD_COMPILER_STRING=$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
-KBUILD_BUILD_TIMESTAMP=$(date)
-export KBUILD_COMPILER_STRING
+COMPILER_STRING=$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//')
 export KBUILD_BUILD_TIMESTAMP
 export KBUILD_BUILD_USER
 export KBUILD_BUILD_HOST
@@ -299,7 +307,7 @@ regenerate_defconfig() {
     make "${MAKE_ARGS[@]}" -s olddefconfig
 }
 
-# Modify Clang LTO mode and regenerate config
+# Modify Clang LTO mode
 clang_lto() {
     config --enable CONFIG_LTO_CLANG
     case "$1" in
@@ -491,7 +499,7 @@ info "Writing build metadata to github.env"
 cat > "$WORKSPACE/github.env" << EOF
 kernel_version=$KERNEL_VERSION
 kernel_name=$KERNEL_NAME
-toolchain=$KBUILD_COMPILER_STRING
+toolchain=$COMPILER_STRING
 build_date=$KBUILD_BUILD_TIMESTAMP
 package_name=$PACKAGE_NAME
 susfs_version=$SUSFS_VERSION
@@ -510,11 +518,11 @@ result_caption=$(
 *Kernel*: $(escape_md_v2 "$KERNEL_NAME")
 
 *Build info*
-• Linux: $(escape_md_v2 "$KERNEL_VERSION")
-• Date: $(escape_md_v2 "$KBUILD_BUILD_TIMESTAMP")
+• Linux Version: $(escape_md_v2 "$KERNEL_VERSION")
+• Build Date: $(escape_md_v2 "$KBUILD_BUILD_TIMESTAMP")
 • KernelSU: $(escape_md_v2 "$KSU")
 • SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "None")
-• Compiler: $(escape_md_v2 "$KBUILD_COMPILER_STRING")
+• Compiler: $(escape_md_v2 "$COMPILER_STRING")
 
 *Artifact*
 • Name: $(escape_md_v2 "$PACKAGE_NAME.zip")

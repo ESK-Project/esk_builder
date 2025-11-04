@@ -30,7 +30,6 @@ escape_md_v2() {
     s=${s//#/\\#}
     s=${s//+/\\+}
     s=${s//-/\\-}
-    s=${s//= /\\=}
     s=${s//=/\\=}
     s=${s//|/\\|}
     s=${s//\{/\\\{}
@@ -40,8 +39,26 @@ escape_md_v2() {
     echo "$s"
 }
 
+# Bool parsing utils
+norm_bool() {
+    local value=$1;
+    case "${value,,}" in
+        1 | y | yes | t | true | on) echo "true" ;;
+        0 | n | no | f | false | off) echo "false" ;;
+        *) echo "false" ;;
+    esac
+}
+
+parse_bool() {
+    if [[ $1 == "true" ]]; then
+        echo "Enabled"
+    else 
+        echo "Disabled";
+    fi
+}
+
 # Telegram Notify toggle
-TG_NOTIFY="${TG_NOTIFY:-true}"
+TG_NOTIFY="$(norm_bool "${TG_NOTIFY:-true}")"
 
 # Logging functions
 info() { echo -e "${BLUE}[$(date '+%F %T')] [INFO]${NC} $*"; }
@@ -65,7 +82,6 @@ telegram_send_msg() {
     if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
         err=$(echo "$resp" | jq -r '.description')
         echo -e "${RED}[$(date '+%F %T')] [ERROR] telegram_send_msg(): failed to send message: ${err:-Unknown error} $*" >&2
-        exit 1
     fi
 }
 
@@ -85,7 +101,6 @@ telegram_upload_file() {
     if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
         err=$(echo "$resp" | jq -r '.description')
         echo -e "${RED}[$(date '+%F %T')] [ERROR] telegram_upload_file(): failed to upload file: ${err:-Unknown error}" >&2
-        exit 1
     fi
 }
 
@@ -106,26 +121,9 @@ EOF
     exit 1
 }
 
-# Bool parsing utils
-norm_bool() {
-    local value=$1;
-    case "${value,,}" in
-        1 | y | yes | t | true | on) echo "true" ;;
-        0 | n | no | f | false | off) echo "false" ;;
-        *) echo "false" ;;
-    esac
-}
-
-parse_bool() {
-    if [[ $1 == "true" ]]; then
-        echo "Enabled"
-    else 
-        echo "Disabled";
-    fi
-}
-
-
 ### Configuration ##################################################################
+
+FEATURE_EXPERIMENTAL="$(norm_bool "${FEATURE_EXPERIMENTAL:-false}")"
 
 # --- General
 KERNEL_NAME="ESK"
@@ -176,7 +174,7 @@ trap 'error "Build failed at line $LINENO: $BASH_COMMAND"' ERR
 
 ### Utilities ######################################################################
 
-# Run KernelSU setup.sh from a repo/ref
+# Run KernelSU setup.sh from repo/ref
 install_ksu() {
     local repo="$1"
     local ref="$2" # branch or tag
@@ -212,11 +210,14 @@ exec > >(tee "$LOGFILE") 2>&1
 
 info "Validating environment variables..."
 : "${GH_TOKEN:?Required GitHub PAT missing: GH_TOKEN}"
-if [[ $TG_NOTIFY == true ]]; then
+if [[ "$TG_NOTIFY" == true ]]; then
     : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
     : "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
 fi
 
+if [ "$FEATURE_EXPERIMENTAL" = "true" ]; then
+    warn "Experimental features enabled! (Included: BBG)"
+fi
 
 # Validate KernelSU variant
 KSU="${KSU^^}"
@@ -224,8 +225,8 @@ case "$KSU" in
     NONE | OFFICIAL | NEXT | SUKI) ;;
     *) error "Invalid KSU='$KSU' (expected: NONE|OFFICIAL|NEXT|SUKI)" ;;
 esac
-ksu_included=true
-[[ $KSU == "NONE" ]] && ksu_included=false
+ksu_included="true"
+[[ $KSU == "NONE" ]] && ksu_included="false"
 
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
@@ -235,12 +236,15 @@ start_msg=$(
     cat << EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
 
-• *Defconfig*: $(escape_md_v2 "$KERNEL_DEFCONFIG")
-• *Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
-• *KernelSU*: $(escape_md_v2 "$(parse_bool "$ksu_included") | $KSU")  
-• *SuSFS*: $(parse_bool "$SUSFS")
-• *LXC*: $(parse_bool "$LXC")
-• *Build jobs*: $(escape_md_v2 "$JOBS")
+*Build info*
+├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
+├ Defconfig: $(escape_md_v2 "$KERNEL_DEFCONFIG")
+└ Jobs: $(escape_md_v2 "$JOBS")
+
+*Build options*
+├ KernelSU: $(escape_md_v2 "$(parse_bool "$ksu_included") | $KSU")
+├ SuSFS: $(parse_bool "$SUSFS")
+└ LXC: $(parse_bool "$LXC")
 EOF
 )
 
@@ -331,7 +335,7 @@ clang_lto() {
 ### Pre-build ######################################################################
 
 # KernelSU setup
-if [[ $ksu_included == true ]]; then
+if [[ $ksu_included == "true" ]]; then
     info "Setup KernelSU"
     case "$KSU" in
         "OFFICIAL") install_ksu tiann/KernelSU main ;;
@@ -405,16 +409,19 @@ if [[ $LXC == "true" ]]; then
     success "LXC patch applied"
 fi
 
-# Baseband Guard (BBG) LSM (for KernelSU variants)
-if [[ $ksu_included == true ]]; then
+# Baseband Guard (BBG) LSM (experimental!)
+if [ "$FEATURE_EXPERIMENTAL" == "true" ]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
     wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash > /dev/null 2>&1
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
     config --enable CONFIG_BBG
-    success "Added BBG!"
+    success "Added BBG"
 fi
 
 ### Build ##########################################################################
+
+# Bash built-in time counter, starts from this line
+SECONDS=0
 
 info "Generate defconfig: $KERNEL_DEFCONFIG"
 make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" > /dev/null 2>&1
@@ -505,32 +512,39 @@ package_name=$PACKAGE_NAME
 susfs_version=$SUSFS_VERSION
 variant=$VARIANT
 name=$KERNEL_NAME
-out_dir=$WORKSPACE
+out_dir=$OUT_DIR
 release_repo=$RELEASE_REPO
 release_branch=$RELEASE_BRANCH
 EOF
+
+build_time="$SECONDS"
+minutes=$((build_time / 60))
+seconds=$((build_time % 60))
 
 result_caption=$(
     cat << EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
-*Builder*: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
-*Kernel*: $(escape_md_v2 "$KERNEL_NAME")
+*Build*
+├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
+├ Build time: $(escape_md_v2 "${minutes}m ${seconds}s")
+└ Build date: $(escape_md_v2 "$KBUILD_BUILD_TIMESTAMP")
 
-*Build info*
-• Linux Version: $(escape_md_v2 "$KERNEL_VERSION")
-• Build Date: $(escape_md_v2 "$KBUILD_BUILD_TIMESTAMP")
-• KernelSU: $(escape_md_v2 "$KSU")
-• SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "None")
-• Compiler: $(escape_md_v2 "$COMPILER_STRING")
+*Kernel*
+├ Linux version: $(escape_md_v2 "$KERNEL_VERSION")
+└ Compiler: $(escape_md_v2 "$COMPILER_STRING")
+
+*Options*
+├ KernelSU: $(escape_md_v2 "$KSU")
+├ SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "None")
+└ LXC: $(escape_md_v2 "$(parse_bool "$LXC")")
 
 *Artifact*
-• Name: $(escape_md_v2 "$PACKAGE_NAME.zip")
-• Size: $(escape_md_v2 "$(du -h "$WORKSPACE/$PACKAGE_NAME.zip" | cut -f1)")
-• SHA256: \`$(escape_md_v2 "$(sha256sum "$WORKSPACE/$PACKAGE_NAME.zip" | awk '{print $1}')")\`
+├ Name: $(escape_md_v2 "$PACKAGE_NAME.zip")
+└ Size: $(escape_md_v2 "$(du -h "$WORKSPACE/$PACKAGE_NAME.zip" | cut -f1)")
 EOF
 )
 
 telegram_upload_file "$WORKSPACE/$PACKAGE_NAME.zip" "$result_caption"
 
-success "Build succeeded"
+success "Build succeeded in ${minutes}m ${seconds}s"

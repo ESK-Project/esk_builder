@@ -48,7 +48,7 @@ on:
         description: "KernelSU variant"
         default: "NONE"
         type: choice
-        options: ["NONE", "OFFICIAL", "NEXT", "SUKI"]
+        options: ["NONE", "OFFICIAL", "NEXT", "SUKI", "KOW"]
 
       SUSFS:
         description: "Enable SUSFS"

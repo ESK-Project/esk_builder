@@ -222,8 +222,8 @@ fi
 # Validate KernelSU variant
 KSU="${KSU^^}"
 case "$KSU" in
-    NONE | OFFICIAL | NEXT | SUKI) ;;
-    *) error "Invalid KSU='$KSU' (expected: NONE|OFFICIAL|NEXT|SUKI)" ;;
+    NONE | OFFICIAL | NEXT | SUKI | KOW) ;;
+    *) error "Invalid KSU='$KSU' (expected: NONE|OFFICIAL|NEXT|SUKI|KOW)" ;;
 esac
 ksu_included="true"
 [[ $KSU == "NONE" ]] && ksu_included="false"
@@ -341,6 +341,7 @@ if [[ $ksu_included == "true" ]]; then
         "OFFICIAL") install_ksu tiann/KernelSU main ;;
         "NEXT") install_ksu KernelSU-Next/KernelSU-Next next ;;
         "SUKI") install_ksu SukiSU-Ultra/SukiSU-Ultra "$(if [[ $SUSFS == "true" ]]; then echo "susfs-main"; else echo "main"; fi)" ;;
+        "KOW") install_ksu KOWX712/KernelSU staging ;;
     esac
 
     info "Apply KernelSU manual hook patch"

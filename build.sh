@@ -500,7 +500,7 @@ VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
-zip -r9q -T -X -y -n .zst "$WORKSPACE/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
+zip -r9q -T -X -y -n .zst "$OUT_DIR/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
 cd "$WORKSPACE"
 
 info "Writing build metadata to github.env"
@@ -546,6 +546,6 @@ result_caption=$(
 EOF
 )
 
-telegram_upload_file "$WORKSPACE/$PACKAGE_NAME.zip" "$result_caption"
+telegram_upload_file "$OUT_DIR/$PACKAGE_NAME.zip" "$result_caption"
 
 success "Build succeeded in ${minutes}m ${seconds}s"

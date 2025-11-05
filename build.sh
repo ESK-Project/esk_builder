@@ -67,6 +67,7 @@ warn() { echo -e "${YELLOW}[$(date '+%F %T')] [WARN]${NC} $*"; }
 
 # Send a text message via Telegram Bot API
 telegram_send_msg() {
+    local text=$1
     local resp err
 
     if [[ $TG_NOTIFY == false ]]; then
@@ -77,7 +78,7 @@ telegram_send_msg() {
         -d chat_id="${TG_CHAT_ID}" \
         -d parse_mode="MarkdownV2" \
         -d disable_web_page_preview=true \
-        -d text="$1")
+        -d text="$text")
 
     if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
         err=$(echo "$resp" | jq -r '.description')
@@ -87,16 +88,18 @@ telegram_send_msg() {
 
 # Upload a document with caption via Telegram Bot API
 telegram_upload_file() {
+    local file="$1"
+    local caption="$2"
     local resp err
 
     if [[ $TG_NOTIFY == false ]]; then
         return 0
     fi
 
-    resp=$(curl -sX POST -F document=@"$1" https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendDocument \
+    resp=$(curl -sX POST -F document=@"$file" https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendDocument \
         -F "chat_id=${TG_CHAT_ID}" \
         -F "parse_mode=MarkdownV2" \
-        -F "caption=$2")
+        -F "caption=$caption")
 
     if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
         err=$(echo "$resp" | jq -r '.description')
@@ -218,8 +221,8 @@ fi
 # Validate KernelSU variant
 KSU="${KSU^^}"
 case "$KSU" in
-    NONE | OFFICIAL | NEXT | SUKI | KOW) ;;
-    *) error "Invalid KSU='$KSU' (expected: NONE|OFFICIAL|NEXT|SUKI|KOW)" ;;
+    NONE | OFFICIAL | NEXT | SUKI) ;;
+    *) error "Invalid KSU='$KSU' (expected: NONE|OFFICIAL|NEXT|SUKI)" ;;
 esac
 ksu_included="true"
 [[ $KSU == "NONE" ]] && ksu_included="false"
@@ -276,6 +279,7 @@ rm -rf "$WORKSPACE/clang-archive"
 export PATH="${CLANG_BIN}:$PATH"
 
 COMPILER_STRING=$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//')
+KBUILD_BUILD_TIMESTAMP=$(date)
 export KBUILD_BUILD_TIMESTAMP
 export KBUILD_BUILD_USER
 export KBUILD_BUILD_HOST
@@ -337,25 +341,21 @@ if [[ $ksu_included == "true" ]]; then
         "OFFICIAL") install_ksu tiann/KernelSU main ;;
         "NEXT") install_ksu KernelSU-Next/KernelSU-Next next ;;
         "SUKI") install_ksu SukiSU-Ultra/SukiSU-Ultra "$(if [[ $SUSFS == "true" ]]; then echo "susfs-main"; else echo "main"; fi)" ;;
-        "KOW") install_ksu KOWX712/KernelSU staging ;;
     esac
 
-    info "Apply KernelSU manual hook patch"
+    info "Configuring KernelSU"
+    config --enable CONFIG_KSU
+
     if [[ $KSU == "SUKI" ]]; then
         patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
-        config --disable CONFIG_KSU_SUSFS_SUS_SU
+        config --enable CONFIG_KPM
+        config --enable CONFIG_KSU_TRACEPOINT_HOOK
     elif [[ $KSU == "NEXT" ]]; then
         patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/next/manual_hooks.patch"
-        config --disable CONFIG_KSU_SUSFS_SUS_SU
+        config --disable CONFIG_KSU_KPROBES_HOOK
     fi
-
-    config --enable CONFIG_KSU
-    config --enable CONFIG_KSU_TRACEPOINT_HOOK
-    config --enable CONFIG_KSU_MANUAL_HOOK
-    config --disable CONFIG_KSU_KPROBES_HOOK
-    config --enable CONFIG_KPM
-    config --enable CONFIG_KSU_MANUAL_SU
-    success "KernelSU configured"
+    
+    success "KernelSU added"
 fi
 
 # SuSFS setup
@@ -394,6 +394,11 @@ if [[ $SUSFS == "true" ]]; then
 
     cd "$KERNEL_DEST"
     config --enable CONFIG_KSU_SUSFS
+
+    # Disable SUS_SU for manual hooks integrated KernelSU
+    if [[ $KSU == "SUKI" || $KSU == "NEXT" ]]; then
+        config --disable CONFIG_KSU_SUSFS_SUS_SU
+    fi
     success "SuSFS applied!"
 else
     config --disable CONFIG_KSU_SUSFS
@@ -483,7 +488,7 @@ UPX_LIST=(
 for binary in "${UPX_LIST[@]}"; do
     file="$ANYKERNEL_DEST/$binary"
 
-    [[ -f $file ]] || continue
+    [[ -f $file ]] || warn "[UPX] Binary not found: $binary"
 
     if upx -9 --lzma --no-progress "$file" > /dev/null 2>&1; then
         success "[UPX] Compressed: $(basename "$binary")"
@@ -495,6 +500,8 @@ done
 VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
+[[ $BBG == "true" ]] && VARIANT+="-BBG"
+
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 zip -r9q -T -X -y -n .zst "$OUT_DIR/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
 cd "$WORKSPACE"

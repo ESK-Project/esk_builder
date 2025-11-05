@@ -51,7 +51,7 @@ on:
         description: "KernelSU variant"
         default: "NONE"
         type: choice
-        options: ["NONE", "OFFICIAL", "NEXT", "SUKI", "KOW"]
+        options: ["NONE", "OFFICIAL", "NEXT", "SUKI"]
 
       SUSFS:
         description: "Include SUSFS?"

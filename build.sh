@@ -123,8 +123,6 @@ EOF
 
 ### Configuration ##################################################################
 
-FEATURE_EXPERIMENTAL="$(norm_bool "${FEATURE_EXPERIMENTAL:-false}")"
-
 # --- General
 KERNEL_NAME="ESK"
 KERNEL_DEFCONFIG="gki_defconfig"
@@ -141,6 +139,8 @@ KSU="${KSU:-NONE}"
 SUSFS="$(norm_bool "${SUSFS:-false}")"
 # Apply LXC patch?
 LXC="$(norm_bool "${LXC:-false}")"
+# Include BBG?
+BBG="$(norm_bool "${BBG:-false}")"
 
 # --- Compiler
 # Clang LTO mode: thin | full
@@ -213,10 +213,6 @@ info "Validating environment variables..."
 if [[ "$TG_NOTIFY" == true ]]; then
     : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
     : "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
-fi
-
-if [ "$FEATURE_EXPERIMENTAL" = "true" ]; then
-    warn "Experimental features enabled! (Included: BBG)"
 fi
 
 # Validate KernelSU variant
@@ -410,8 +406,8 @@ if [[ $LXC == "true" ]]; then
     success "LXC patch applied"
 fi
 
-# Baseband Guard (BBG) LSM (experimental!)
-if [ "$FEATURE_EXPERIMENTAL" == "true" ]; then
+# Baseband Guard (BBG) LSM
+if [ "$BBG" == "true" ]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
     wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash > /dev/null 2>&1
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig

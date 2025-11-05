@@ -15,6 +15,9 @@ on:
       LXC:
         type: string
         required: true
+      BBG:
+        type: string
+        required: true
       TG_NOTIFY:
         type: string
         required: true
@@ -51,13 +54,19 @@ on:
         options: ["NONE", "OFFICIAL", "NEXT", "SUKI", "KOW"]
 
       SUSFS:
-        description: "Enable SUSFS"
+        description: "Include SUSFS?"
         default: "false"
         type: choice
         options: ["false", "true"]
 
       LXC:
-        description: "Enable LXC"
+        description: "Apply LXC patch?"
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      
+      BBG:
+        description: "Include Baseband-guard?"
         default: "false"
         type: choice
         options: ["false", "true"]
@@ -141,6 +150,7 @@ jobs:
           KSU: ${{ inputs.KSU }}
           SUSFS: ${{ inputs.SUSFS }}
           LXC: ${{ inputs.LXC }}
+          BBG: ${{ inputs.BBG }}
           TG_NOTIFY: ${{ inputs.TG_NOTIFY }}
           SOURCE_DATE_EPOCH: "1704067200"
         run: |

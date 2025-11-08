@@ -257,10 +257,10 @@ for dir in "${RESET_DIR_LIST[@]}"; do
     reset_dir "$dir"
 done
 
-info "Clone kernel source: $KERNEL_REPO -> $KERNEL_DEST"
+info "Cloning kernel source: $KERNEL_REPO -> $KERNEL_DEST"
 git_clone "$KERNEL_REPO" "$KERNEL_DEST"
 
-info "Clone AnyKernel3: $ANYKERNEL_REPO -> $ANYKERNEL_DEST"
+info "Cloning AnyKernel3: $ANYKERNEL_REPO -> $ANYKERNEL_DEST"
 git_clone "$ANYKERNEL_REPO" "$ANYKERNEL_DEST"
 
 info "Fetching AOSP Clang toolchain"
@@ -269,17 +269,40 @@ clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror
     | grep "browser_download_url" \
     | grep ".tar.gz" \
     | cut -d '"' -f 4)
+
 mkdir -p "$CLANG"
-aria2c -c -x16 -s16 -k4M --file-allocation=falloc \
-    --console-log-level=error --summary-interval=0 --download-result=hide -q \
+
+# Aria2c with retry handler
+attempt=0
+retries=5
+done="false"
+aria_opts=(
+    -q -c -x16 -s16 -k8M 
+    --file-allocation=falloc --check-certificate=false
     -d "$WORKSPACE" -o "clang-archive" "$clang_url"
+)
+
+while [[ $attempt -le $retries ]]; do
+    if aria2c "${aria_opts[@]}"; then
+        done="true"
+        success "Clang download successful!"
+        break
+    else
+        warn "Clang download attempt $attempt failed, retrying..."
+        ((attempt++))
+        sleep 5
+    fi
+done
+
+[[ "$done" == "false" ]] && error "Clang download failed!"
+
 tar -xzf "$WORKSPACE/clang-archive" -C "$CLANG"
 rm -rf "$WORKSPACE/clang-archive"
 
 export PATH="${CLANG_BIN}:$PATH"
 
-COMPILER_STRING=$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//')
-KBUILD_BUILD_TIMESTAMP=$(date)
+COMPILER_STRING="$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//')"
+KBUILD_BUILD_TIMESTAMP="$(date +"%a %d %b %H:%M")"
 export KBUILD_BUILD_TIMESTAMP
 export KBUILD_BUILD_USER
 export KBUILD_BUILD_HOST
@@ -296,7 +319,7 @@ fi
 
 ### Kernel helpers #################################################################
 
-# Wrapper for scripts/config (prefer existing .config, use $DEFCONFIG_FILE if not found)
+# Wrapper for scripts/config (prefer existing .config)
 config() {
     local cfg="$KERNEL_OUT/.config"
     if [[ -f $cfg ]]; then
@@ -438,34 +461,7 @@ success "Kernel built successfully"
 info "Packaging AnyKernel3 zip..."
 cd "$ANYKERNEL_DEST"
 
-if [[ $KSU == "SUKI" ]]; then
-    info "Patching KPM for SukiSU variant..."
-
-    tmpdir="$(mktemp -d)"
-    cd "$tmpdir"
-    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$tmpdir"/
-
-    LATEST_SUKISU_PATCH=$(curl -fsSL "https://api.github.com/repos/SukiSU-Ultra/SukiSU_KernelPatch_patch/releases/latest" \
-        -H "Authorization: Bearer $GH_TOKEN" \
-        | grep "browser_download_url" | grep "patch_linux" | cut -d '"' -f 4)
-
-    [[ -n $LATEST_SUKISU_PATCH ]] || error "Could not find patch_linux in the latest release"
-
-    curl -fsSL "$LATEST_SUKISU_PATCH" -o patch_linux
-    chmod +x ./patch_linux
-
-    ./patch_linux > /dev/null 2>&1
-    [[ -f oImage ]] || error "patch_linux failed to produce patched Image"
-    mv oImage "$ANYKERNEL_DEST/Image"
-
-    rm -rf ./patch_linux
-    cd "$ANYKERNEL_DEST"
-    rm -rf "$tmpdir"
-
-    success "Patched KPM for SukiSU variant"
-else
-    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL_DEST"/
-fi
+cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL_DEST"/
 
 info "Compressing kernel image..."
 zstd -19 -T0 --no-progress -o Image.zst Image > /dev/null 2>&1
@@ -485,6 +481,8 @@ UPX_LIST=(
     tools/snapshotupdater_static
 )
 
+
+info "Compressing AnyKernel3 static binary with upx..."
 for binary in "${UPX_LIST[@]}"; do
     file="$ANYKERNEL_DEST/$binary"
 
@@ -524,6 +522,7 @@ EOF
 build_time="$SECONDS"
 minutes=$((build_time / 60))
 seconds=$((build_time % 60))
+final_package="$OUT_DIR/$PACKAGE_NAME.zip"
 
 result_caption=$(
     cat << EOF
@@ -540,15 +539,16 @@ result_caption=$(
 
 *Options*
 ├ KernelSU: $(escape_md_v2 "$KSU")
-├ SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "None")
-└ LXC: $(escape_md_v2 "$(parse_bool "$LXC")")
+├ SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled")
+├ BBG: $(parse_bool "$BBG")
+└ LXC: $(parse_bool "$LXC")
 
 *Artifact*
 ├ Name: $(escape_md_v2 "$PACKAGE_NAME.zip")
-└ Size: $(escape_md_v2 "$(du -h "$WORKSPACE/$PACKAGE_NAME.zip" | cut -f1)")
+└ Size: $(escape_md_v2 "$(du -h "$final_package" | cut -f1)")
 EOF
 )
 
-telegram_upload_file "$OUT_DIR/$PACKAGE_NAME.zip" "$result_caption"
+telegram_upload_file "$final_package" "$result_caption"
 
 success "Build succeeded in ${minutes}m ${seconds}s"

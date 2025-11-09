@@ -41,7 +41,7 @@ escape_md_v2() {
 
 # Bool parsing utils
 norm_bool() {
-    local value=$1;
+    local value=$1
     case "${value,,}" in
         1 | y | yes | t | true | on) echo "true" ;;
         0 | n | no | f | false | off) echo "false" ;;
@@ -52,8 +52,8 @@ norm_bool() {
 parse_bool() {
     if [[ $1 == "true" ]]; then
         echo "Enabled"
-    else 
-        echo "Disabled";
+    else
+        echo "Disabled"
     fi
 }
 
@@ -80,7 +80,7 @@ telegram_send_msg() {
         -d disable_web_page_preview=true \
         -d text="$text")
 
-    if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
+    if ! echo "$resp" | jq -e '.ok == true' >/dev/null; then
         err=$(echo "$resp" | jq -r '.description')
         echo -e "${RED}[$(date '+%F %T')] [ERROR] telegram_send_msg(): failed to send message: ${err:-Unknown error} $*" >&2
     fi
@@ -101,7 +101,7 @@ telegram_upload_file() {
         -F "parse_mode=MarkdownV2" \
         -F "caption=$caption")
 
-    if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
+    if ! echo "$resp" | jq -e '.ok == true' >/dev/null; then
         err=$(echo "$resp" | jq -r '.description')
         echo -e "${RED}[$(date '+%F %T')] [ERROR] telegram_upload_file(): failed to upload file: ${err:-Unknown error}" >&2
     fi
@@ -114,7 +114,7 @@ error() {
 
     local msg
     msg=$(
-        cat << EOF
+        cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel CI")*
 $(escape_md_v2 "ERROR: $*")
 EOF
@@ -210,7 +210,7 @@ git_clone() {
     local source="$1"
     local dest="$2"
     local host repo branch
-    IFS=':@' read -r host repo branch <<< "$source"
+    IFS=':@' read -r host repo branch <<<"$source"
     git clone -q --depth=1 --single-branch --no-tags \
         "https://${host}/${repo}" -b "${branch}" "${dest}"
 }
@@ -241,7 +241,7 @@ sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
 # Notify Telegram
 start_msg=$(
-    cat << EOF
+    cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
 
 *Build info*
@@ -289,7 +289,7 @@ mkdir -p "$CLANG"
 attempt=0
 retries=5
 aria_opts=(
-    -q -c -x16 -s16 -k8M 
+    -q -c -x16 -s16 -k8M
     --file-allocation=falloc --check-certificate=false
     -d "$WORKSPACE" -o "clang-archive" "$clang_url"
 )
@@ -299,7 +299,7 @@ while [[ $attempt < $retries ]]; do
         success "Clang download successful!"
         break
     else
-        if (( attempt == max_retries )); then
+        if ((attempt == max_retries)); then
             error "Clang download failed after $max_retries attempts!"
         else
             warn "Clang download attempt $attempt failed, retrying..."
@@ -383,15 +383,15 @@ if [[ $ksu_included == "true" ]]; then
     config --enable CONFIG_KSU
 
     if [[ $KSU == "SUKI" ]]; then
-        patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
+        patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$KERNEL_PATCHES/suki/manual_hooks.patch"
         config --enable CONFIG_KPM
         config --enable CONFIG_KSU_TRACEPOINT_HOOK
         config --enable CONFIG_HAVE_SYSCALL_TRACEPOINTS
-    elif [[ $KSU == "NEXT" ]] then
-        patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/next/manual_hooks.patch"
+    elif [[ $KSU == "NEXT" ]]; then
+        patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$KERNEL_PATCHES/next/manual_hooks.patch"
         config --disable CONFIG_KSU_KPROBES_HOOK
     fi
-    
+
     success "KernelSU added"
 fi
 
@@ -404,7 +404,7 @@ if [[ $SUSFS == "true" ]]; then
     git_clone "gitlab.com:simonpunk/susfs4ksu@$SUSFS_BRANCH" "$SUSFS_DIR"
     cp -R "$SUSFS_PATCHES"/fs/* ./fs
     cp -R "$SUSFS_PATCHES"/include/* ./include
-    patch -s -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
+    patch -s -p1 --no-backup-if-mismatch <"$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
     SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
 
     if [[ $KSU == "NEXT" || $KSU == "OFFICIAL" ]]; then
@@ -413,7 +413,7 @@ if [[ $SUSFS == "true" ]]; then
             "OFFICIAL") cd KernelSU ;;
         esac
         info "Apply KernelSU-side SuSFS patches ($KSU)"
-        patch -s -p1 --no-backup-if-mismatch < "$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
+        patch -s -p1 --no-backup-if-mismatch <"$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
     fi
 
     if [[ $KSU == "NEXT" ]]; then
@@ -425,7 +425,7 @@ if [[ $SUSFS == "true" ]]; then
             error "SuSFS fix patches are unavailable for SuSFS $SUSFS_VERSION"
         fi
         for patch in "$SUSFS_FIX_PATCHES"/*.patch; do
-            patch -s -p1 --no-backup-if-mismatch < "$patch"
+            patch -s -p1 --no-backup-if-mismatch <"$patch"
         done
     fi
 
@@ -444,14 +444,14 @@ fi
 # LXC support
 if [[ $LXC == "true" ]]; then
     info "Apply LXC patch"
-    patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/lxc_support.patch"
+    patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$KERNEL_PATCHES/lxc_support.patch"
     success "LXC patch applied"
 fi
 
 # Baseband Guard (BBG) LSM
 if [ "$BBG" == "true" ]; then
     info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
-    wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash > /dev/null 2>&1
+    wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash >/dev/null 2>&1
     sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
     config --enable CONFIG_BBG
     success "Added BBG"
@@ -463,7 +463,7 @@ fi
 SECONDS=0
 
 info "Generate defconfig: $KERNEL_DEFCONFIG"
-make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" > /dev/null 2>&1
+make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" >/dev/null 2>&1
 success "Defconfig generated"
 
 clang_lto "$CLANG_LTO"
@@ -484,11 +484,11 @@ pushd "$ANYKERNEL"
 cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL"/
 
 info "Compressing kernel image..."
-zstd -19 -T0 --no-progress -o Image.zst Image > /dev/null 2>&1
+zstd -19 -T0 --no-progress -o Image.zst Image >/dev/null 2>&1
 rm -rf ./Image
 
 # Generate sha256 hash for Image.zst
-sha256sum Image.zst > Image.zst.sha256
+sha256sum Image.zst >Image.zst.sha256
 
 info "Compressing static binaries with upx..."
 UPX_LIST=(
@@ -507,7 +507,7 @@ for binary in "${UPX_LIST[@]}"; do
 
     [[ -f $file ]] || warn "[UPX] Binary not found: $binary"
 
-    if upx -9 --lzma --no-progress "$file" > /dev/null 2>&1; then
+    if upx -9 --lzma --no-progress "$file" >/dev/null 2>&1; then
         success "[UPX] Compressed: $(basename "$binary")"
     else
         warn "[UPX] Failed: $(basename "$binary")"
@@ -532,7 +532,7 @@ cp "$BOOT_IMAGE/boot.img" "$WORKSPACE/$PACKAGE_NAME-boot.img"
 popd
 
 info "Writing build metadata to github.env"
-cat > "$WORKSPACE/github.env" << EOF
+cat >"$WORKSPACE/github.env" <<EOF
 kernel_version=$KERNEL_VERSION
 kernel_name=$KERNEL_NAME
 toolchain=$COMPILER_STRING
@@ -552,7 +552,7 @@ seconds=$((build_time % 60))
 final_package="$OUT_DIR/$PACKAGE_NAME.zip"
 
 result_caption=$(
-    cat << EOF
+    cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
 *Build*

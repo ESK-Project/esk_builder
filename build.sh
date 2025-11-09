@@ -373,7 +373,8 @@ if [[ $ksu_included == "true" ]]; then
         patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/suki/manual_hooks.patch"
         config --enable CONFIG_KPM
         config --enable CONFIG_KSU_TRACEPOINT_HOOK
-    elif [[ $KSU == "NEXT" ]]; then
+        config --enable CONFIG_HAVE_SYSCALL_TRACEPOINTS
+    elif [[ $KSU == "NEXT" then
         patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/next/manual_hooks.patch"
         config --disable CONFIG_KSU_KPROBES_HOOK
     fi

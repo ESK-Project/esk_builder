@@ -155,16 +155,25 @@ JOBS="$(nproc --all)"
 WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_PATCHES="$WORKSPACE/kernel_patches"
 CLANG="$WORKSPACE/clang"
+CLANG_BIN="$CLANG/bin"
+SIGN_KEY="$WORKSPACE/key"
 OUT_DIR="$WORKSPACE/out"
 LOGFILE="$WORKSPACE/build.log"
+BOOT_IMAGE="$WORKSPACE/boot_image"
+BOOT_SIGN_KEY="$SIGN_KEY/boot_sign_key.pem"
 
 # --- Sources (host:owner/repo@ref)
 KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@16"
-KERNEL_DEST="$WORKSPACE/kernel"
+KERNEL="$WORKSPACE/kernel"
 ANYKERNEL_REPO="github.com:ESK-Project/AnyKernel3@android12-5.10"
-ANYKERNEL_DEST="$WORKSPACE/anykernel3"
-KERNEL_OUT="$KERNEL_DEST/out"
-CLANG_BIN="$CLANG/bin"
+ANYKERNEL="$WORKSPACE/anykernel3"
+GKI_URL="https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-2025-09_r1.zip"
+BUILD_TOOLS_REPO="android.googlesource.com:kernel/prebuilts/build-tools@main-kernel-build-2024"
+BUILD_TOOLS="$WORKSPACE/build-tools"
+MKBOOTIMG_REPO="android.googlesource.com:platform/system/tools/mkbootimg@main-kernel-build-2024"
+MKBOOTIMG="$WORKSPACE/mkbootimg"
+
+KERNEL_OUT="$KERNEL/out"
 
 # --- Make arguments
 MAKE_ARGS=(
@@ -251,17 +260,21 @@ telegram_send_msg "$start_msg"
 
 ### Prepare environment ############################################################
 
-RESET_DIR_LIST=("$KERNEL_DEST" "$ANYKERNEL_DEST" "$OUT_DIR")
-info "Reset directories: ${RESET_DIR_LIST[*]}"
+RESET_DIR_LIST=("$KERNEL" "$ANYKERNEL" "$BUILD_TOOLS" "$MKBOOTIMG" "$OUT_DIR" "$BOOT_IMAGE")
+info "Resetting directories: ${RESET_DIR_LIST[*]}"
 for dir in "${RESET_DIR_LIST[@]}"; do
     reset_dir "$dir"
 done
 
-info "Cloning kernel source: $KERNEL_REPO -> $KERNEL_DEST"
-git_clone "$KERNEL_REPO" "$KERNEL_DEST"
+info "Cloning kernel source: $KERNEL_REPO -> $KERNEL"
+git_clone "$KERNEL_REPO" "$KERNEL"
 
-info "Cloning AnyKernel3: $ANYKERNEL_REPO -> $ANYKERNEL_DEST"
-git_clone "$ANYKERNEL_REPO" "$ANYKERNEL_DEST"
+info "Cloning AnyKernel3: $ANYKERNEL_REPO -> $ANYKERNEL"
+git_clone "$ANYKERNEL_REPO" "$ANYKERNEL"
+
+info "Cloning build tools..."
+git_clone "$BUILD_TOOLS_REPO" "$BUILD_TOOLS"
+git_clone "$MKBOOTIMG_REPO" "$MKBOOTIMG"
 
 info "Fetching AOSP Clang toolchain"
 clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
@@ -307,10 +320,10 @@ export KBUILD_BUILD_TIMESTAMP
 export KBUILD_BUILD_USER
 export KBUILD_BUILD_HOST
 
-cd "$KERNEL_DEST"
+cd "$KERNEL"
 KERNEL_VERSION=$(make -s kernelversion | cut -d- -f1)
 
-DEFCONFIG_DIR="$KERNEL_DEST/arch/arm64/configs"
+DEFCONFIG_DIR="$KERNEL/arch/arm64/configs"
 DEFCONFIG_FILE="$DEFCONFIG_DIR/$KERNEL_DEFCONFIG"
 if [ ! -f "$DEFCONFIG_FILE" ]; then
     DEFCONFIG_FILE="$(find "$DEFCONFIG_DIR" -type f -name "$KERNEL_DEFCONFIG" -print -quit)"
@@ -323,9 +336,9 @@ fi
 config() {
     local cfg="$KERNEL_OUT/.config"
     if [[ -f $cfg ]]; then
-        "$KERNEL_DEST/scripts/config" --file "$cfg" "$@"
+        "$KERNEL/scripts/config" --file "$cfg" "$@"
     else
-        "$KERNEL_DEST/scripts/config" --file "$DEFCONFIG_FILE" "$@"
+        "$KERNEL/scripts/config" --file "$DEFCONFIG_FILE" "$@"
     fi
 }
 
@@ -416,7 +429,7 @@ if [[ $SUSFS == "true" ]]; then
         done
     fi
 
-    cd "$KERNEL_DEST"
+    cd "$KERNEL"
     config --enable CONFIG_KSU_SUSFS
 
     # Disable SUS_SU for manual hooks integrated KernelSU
@@ -459,10 +472,16 @@ success "Kernel built successfully"
 
 ### Post-build #####################################################################
 
-info "Packaging AnyKernel3 zip..."
-cd "$ANYKERNEL_DEST"
+VARIANT="$KSU"
+[[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
+[[ $LXC == "true" ]] && VARIANT+="-LXC"
+[[ $BBG == "true" ]] && VARIANT+="-BBG"
 
-cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL_DEST"/
+PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
+
+info "Packaging AnyKernel3 zip..."
+pushd "$ANYKERNEL"
+cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL"/
 
 info "Compressing kernel image..."
 zstd -19 -T0 --no-progress -o Image.zst Image > /dev/null 2>&1
@@ -482,10 +501,9 @@ UPX_LIST=(
     tools/snapshotupdater_static
 )
 
-
 info "Compressing AnyKernel3 static binary with upx..."
 for binary in "${UPX_LIST[@]}"; do
-    file="$ANYKERNEL_DEST/$binary"
+    file="$ANYKERNEL/$binary"
 
     [[ -f $file ]] || warn "[UPX] Binary not found: $binary"
 
@@ -496,14 +514,22 @@ for binary in "${UPX_LIST[@]}"; do
     fi
 done
 
-VARIANT="$KSU"
-[[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
-[[ $LXC == "true" ]] && VARIANT+="-LXC"
-[[ $BBG == "true" ]] && VARIANT+="-BBG"
+zip -r9q -T -X -y -n .zst "$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip" . -x '.git/*' '*.log'
+popd
+success "AnyKernel3 packaged"
 
-PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
-zip -r9q -T -X -y -n .zst "$OUT_DIR/$PACKAGE_NAME.zip" . -x '.git/*' '*.log'
-cd "$WORKSPACE"
+info "Packaging boot image..."
+pushd "$BOOT_IMAGE"
+cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL"/
+
+curl -fsSLo gki-kernel.zip "$GKI_URL"
+unzip gki-kernel.zip && rm gki-kernel.zip
+
+$MKBOOTIMG/unpack_bootimg.py --boot_img="boot-5.10.img"
+$MKBOOTIMG/mkbootimg.py --header_version 4 --kernel Image.gz --output boot.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "2025-09"
+$BUILD_TOOLS/linux-x86/bin/avbtool add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA4096 --key "$BOOT_SIGN_KEY"
+cp "$BOOT_IMAGE/boot.img" "$WORKSPACE/$PACKAGE_NAME-boot.img"
+popd
 
 info "Writing build metadata to github.env"
 cat > "$WORKSPACE/github.env" << EOF

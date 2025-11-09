@@ -275,26 +275,26 @@ mkdir -p "$CLANG"
 # Aria2c with retry handler
 attempt=0
 retries=5
-done="false"
 aria_opts=(
     -q -c -x16 -s16 -k8M 
     --file-allocation=falloc --check-certificate=false
     -d "$WORKSPACE" -o "clang-archive" "$clang_url"
 )
 
-while [[ $attempt -le $retries ]]; do
+while [[ $attempt < $retries ]]; do
     if aria2c "${aria_opts[@]}"; then
-        done="true"
         success "Clang download successful!"
         break
     else
-        warn "Clang download attempt $attempt failed, retrying..."
-        ((attempt++))
-        sleep 5
+        if (( attempt == max_retries )); then
+            error "Clang download failed after $max_retries attempts!"
+        else
+            warn "Clang download attempt $attempt failed, retrying..."
+            ((attempt++))
+            sleep 5
+        fi
     fi
 done
-
-[[ "$done" == "false" ]] && error "Clang download failed!"
 
 tar -xzf "$WORKSPACE/clang-archive" -C "$CLANG"
 rm -rf "$WORKSPACE/clang-archive"

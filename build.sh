@@ -521,6 +521,7 @@ success "AnyKernel3 packaged"
 info "Packaging boot image..."
 pushd "$BOOT_IMAGE"
 cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL"/
+gzip -n -f -9 Image
 
 curl -fsSLo gki-kernel.zip "$GKI_URL"
 unzip gki-kernel.zip && rm gki-kernel.zip

@@ -546,7 +546,7 @@ package_bootimg() {
         --algorithm SHA256_RSA4096 \
         --key "$BOOT_SIGN_KEY"
 
-    cp "$BOOT_IMAGE/boot.img" "$WORKSPACE/$package_name-boot.img"
+    cp "$BOOT_IMAGE/boot.img" "$OUT_DIR/$package_name-boot.img"
 
     popd >/dev/null
 }

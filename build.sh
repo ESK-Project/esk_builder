@@ -205,12 +205,19 @@ MAKE_ARGS=(
     LLVM="1" LD="$CLANG_BIN/ld.lld"
 )
 
+################################################################################
+# Initialize build environment
+################################################################################
+
 # Build package name
 VARIANT="$KSU"
 [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
 [[ $LXC == "true" ]] && VARIANT+="-LXC"
 [[ $BBG == "true" ]] && VARIANT+="-BBG"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
+
+# Generate random build tags
+BUILD_TAG="esk_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
 
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
@@ -286,6 +293,8 @@ send_start_msg() {
     start_msg=$(
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
+
+\#$(escape_md_v2 "$BUILD_TAG")
 
 *Build info*
 ├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -587,7 +596,7 @@ notify_success() {
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
-#$(escape_md_v2 "$build_tag")
+\#$(escape_md_v2 "$BUILD_TAG")
 
 *Build*
 ├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -616,8 +625,6 @@ EOF
 
 telegram_notify() {
     local build_time="$SECONDS"
-    local build_tag
-    build_tag="esk_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
 
     # AnyKernel3
     local ak3_package="$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip"

@@ -205,6 +205,13 @@ MAKE_ARGS=(
     LLVM="1" LD="$CLANG_BIN/ld.lld"
 )
 
+# Build package name
+VARIANT="$KSU"
+[[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
+[[ $LXC == "true" ]] && VARIANT+="-LXC"
+[[ $BBG == "true" ]] && VARIANT+="-BBG"
+PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
+
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
 
@@ -367,7 +374,6 @@ prebuild_kernel() {
     DEFCONFIG_FILE="$KERNEL/arch/arm64/configs/$KERNEL_DEFCONFIG"
     [[ -f $DEFCONFIG_FILE ]] || error "Defconfig not found: $KERNEL_DEFCONFIG"
 
-
     # KernelSU
     local ksu_included="true"
     [[ $KSU == "NONE" ]] && ksu_included="false"
@@ -489,7 +495,7 @@ package_anykernel() {
     rm -f ./Image
     sha256sum Image.zst >Image.zst.sha256
 
-    info "[UPX] Compressing AnyKernel3 static binaries..." 
+    info "[UPX] Compressing AnyKernel3 static binaries..."
     local UPX_LIST=(
         tools/zstd
         tools/fec
@@ -571,6 +577,7 @@ EOF
 notify_success() {
     local final_package="$1"
     local build_time="$2"
+    local build_tag="$3"
 
     local minutes=$((build_time / 60))
     local seconds=$((build_time % 60))
@@ -579,6 +586,8 @@ notify_success() {
     result_caption=$(
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
+
+#$(escape_md_v2 "$build_tag")
 
 *Build*
 ├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -605,6 +614,24 @@ EOF
     success "Build succeeded in ${minutes}m ${seconds}s"
 }
 
+telegram_notify() {
+    local build_time="$SECONDS"
+    local build_tag
+    build_tag="esk_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+
+    # AnyKernel3
+    local ak3_package="$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip"
+    notify_success "$ak3_package" "$build_time" "$build_tag"
+
+    # Boot image
+    pushd "$OUT_DIR" >/dev/null
+    zip -9q -T "$PACKAGE_NAME-boot.zip" "$PACKAGE_NAME-boot.img"
+    popd >/dev/null
+
+    notify_success "$OUT_DIR/$PACKAGE_NAME-boot.zip" "$build_time" "$build_tag"
+    rm -f "$OUT_DIR/$PACKAGE_NAME-boot.zip"
+}
+
 ################################################################################
 # Main
 ################################################################################
@@ -619,21 +646,14 @@ main() {
     prebuild_kernel
     build_kernel
 
-    # Build package name
-    VARIANT="$KSU"
-    [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
-    [[ $LXC == "true" ]] && VARIANT+="-LXC"
-    [[ $BBG == "true" ]] && VARIANT+="-BBG"
-
-    PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
-
+    # Build flashable package
     package_anykernel "$PACKAGE_NAME"
     package_bootimg "$PACKAGE_NAME"
+
+    # Github Actions metadata
     write_metadata "$PACKAGE_NAME"
 
-    local final_package="$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip"
-    local build_time="$SECONDS"
-    notify_success "$final_package" "$build_time"
+    [[ $TG_NOTIFY == "true" ]] && telegram_notify
 }
 
 main "$@"

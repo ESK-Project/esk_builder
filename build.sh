@@ -209,13 +209,6 @@ MAKE_ARGS=(
 # Initialize build environment
 ################################################################################
 
-# Build package name
-VARIANT="$KSU"
-[[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
-[[ $LXC == "true" ]] && VARIANT+="-LXC"
-[[ $BBG == "true" ]] && VARIANT+="-BBG"
-PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
-
 # Generate random build tags
 BUILD_TAG="kernel_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)"
 
@@ -586,6 +579,8 @@ EOF
 notify_success() {
     local final_package="$1"
     local build_time="$2"
+    # For indicating build variant (AnyKernel3, Boot Image)
+    local additional_tag="$3" 
 
     local minutes=$((build_time / 60))
     local seconds=$((build_time % 60))
@@ -595,7 +590,7 @@ notify_success() {
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
-*Tags*: \#$(escape_md_v2 "$BUILD_TAG")
+*Tags*: \#$(escape_md_v2 "$BUILD_TAG") \#$(escape_md_v2 "$additional_tag")
 
 *Build*
 ├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -627,14 +622,14 @@ telegram_notify() {
 
     # AnyKernel3
     local ak3_package="$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip"
-    notify_success "$ak3_package" "$build_time"
+    notify_success "$ak3_package" "$build_time" "anykernel3"
 
     # Boot image
     pushd "$OUT_DIR" >/dev/null
     zip -9q -T "$PACKAGE_NAME-boot.zip" "$PACKAGE_NAME-boot.img"
     popd >/dev/null
 
-    notify_success "$OUT_DIR/$PACKAGE_NAME-boot.zip" "$build_time"
+    notify_success "$OUT_DIR/$PACKAGE_NAME-boot.zip" "$build_time" "boot_image"
     rm -f "$OUT_DIR/$PACKAGE_NAME-boot.zip"
 }
 
@@ -658,6 +653,13 @@ main() {
 
     # Github Actions metadata
     write_metadata "$PACKAGE_NAME"
+
+    # Build package name
+    VARIANT="$KSU"
+    [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
+    [[ $LXC == "true" ]] && VARIANT+="-LXC"
+    [[ $BBG == "true" ]] && VARIANT+="-BBG"
+    PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 
     [[ $TG_NOTIFY == "true" ]] && telegram_notify
 }

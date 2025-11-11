@@ -217,7 +217,7 @@ VARIANT="$KSU"
 PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 
 # Generate random build tags
-BUILD_TAG="esk_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)"
+BUILD_TAG="kernel_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)"
 
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
@@ -294,7 +294,7 @@ send_start_msg() {
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
 
-\#$(escape_md_v2 "$BUILD_TAG")
+*Tags*: \#$(escape_md_v2 "$BUILD_TAG")
 
 *Build info*
 ├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -586,7 +586,6 @@ EOF
 notify_success() {
     local final_package="$1"
     local build_time="$2"
-    local build_tag="$3"
 
     local minutes=$((build_time / 60))
     local seconds=$((build_time % 60))
@@ -596,7 +595,7 @@ notify_success() {
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
-\#$(escape_md_v2 "$BUILD_TAG")
+*Tags*: \#$(escape_md_v2 "$BUILD_TAG")
 
 *Build*
 ├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
@@ -628,14 +627,14 @@ telegram_notify() {
 
     # AnyKernel3
     local ak3_package="$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip"
-    notify_success "$ak3_package" "$build_time" "$build_tag"
+    notify_success "$ak3_package" "$build_time"
 
     # Boot image
     pushd "$OUT_DIR" >/dev/null
     zip -9q -T "$PACKAGE_NAME-boot.zip" "$PACKAGE_NAME-boot.img"
     popd >/dev/null
 
-    notify_success "$OUT_DIR/$PACKAGE_NAME-boot.zip" "$build_time" "$build_tag"
+    notify_success "$OUT_DIR/$PACKAGE_NAME-boot.zip" "$build_time"
     rm -f "$OUT_DIR/$PACKAGE_NAME-boot.zip"
 }
 

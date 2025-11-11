@@ -647,19 +647,19 @@ main() {
     prebuild_kernel
     build_kernel
 
-    # Build flashable package
-    package_anykernel "$PACKAGE_NAME"
-    package_bootimg "$PACKAGE_NAME"
-
-    # Github Actions metadata
-    write_metadata "$PACKAGE_NAME"
-
     # Build package name
     VARIANT="$KSU"
     [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
     [[ $LXC == "true" ]] && VARIANT+="-LXC"
     [[ $BBG == "true" ]] && VARIANT+="-BBG"
     PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
+
+    # Build flashable package
+    package_anykernel "$PACKAGE_NAME"
+    package_bootimg "$PACKAGE_NAME"
+
+    # Github Actions metadata
+    write_metadata "$PACKAGE_NAME"
 
     [[ $TG_NOTIFY == "true" ]] && telegram_notify
 }

@@ -545,7 +545,7 @@ package_bootimg() {
         --output boot.img \
         --ramdisk out/ramdisk \
         --os_version 12.0.0 \
-        --os_patch_level "2025-09"
+        --os_patch_level "2099-12"
 
     "$BUILD_TOOLS/linux-x86/bin/avbtool" add_hash_footer \
         --partition_name boot \

@@ -415,7 +415,7 @@ prebuild_kernel() {
         git_clone "gitlab.com:simonpunk/susfs4ksu@$SUSFS_BRANCH" "$SUSFS_DIR"
         cp -R "$SUSFS_PATCHES"/fs/* ./fs
         cp -R "$SUSFS_PATCHES"/include/* ./include
-        patch -s -p1 --no-backup-if-mismatch <"$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
+        patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
         SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
 
         if [[ $KSU == "NEXT" || $KSU == "OFFICIAL" ]]; then

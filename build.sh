@@ -86,6 +86,9 @@ git_clone() {
 
 TG_NOTIFY="$(norm_bool "${TG_NOTIFY:-true}")"
 
+# Generate random build tags for Telegram
+BUILD_TAG="kernel_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)"
+
 telegram_send_msg() {
     local text=$1
     local resp err
@@ -135,12 +138,14 @@ error() {
     msg=$(
         cat <<EOF
 *$(escape_md_v2 "$KERNEL_NAME Kernel CI")*
+
+*Tags*: \#$(escape_md_v2 "$BUILD_TAG") \#error
+
 $(escape_md_v2 "ERROR: $*")
 EOF
     )
 
-    telegram_send_msg "$msg"
-    telegram_upload_file "$LOGFILE" "Build log"
+    telegram_upload_file "$LOGFILE" "$msg"
     exit 1
 }
 
@@ -208,9 +213,6 @@ MAKE_ARGS=(
 ################################################################################
 # Initialize build environment
 ################################################################################
-
-# Generate random build tags
-BUILD_TAG="kernel_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)"
 
 # Set timezone
 sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
@@ -297,6 +299,7 @@ send_start_msg() {
 *Build options*
 ├ KernelSU: $(escape_md_v2 "$(parse_bool "$ksu_included") | $KSU")
 ├ SuSFS: $(parse_bool "$SUSFS")
+├ BBG: $(parse_bool "$BBG")
 └ LXC: $(parse_bool "$LXC")
 EOF
     )

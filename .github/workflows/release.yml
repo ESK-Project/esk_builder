@@ -156,7 +156,7 @@ jobs:
 
             if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
                 err=$(echo "$resp" | jq -r '.description')
-                echo "::error::telegram_send_msg(): failed to send message: ${err:-Unknown error} $*" >&2
+                echo "::error::telegram_send_msg(): ${err:-Unknown error} $*" >&2
                 exit 1
             fi
           }

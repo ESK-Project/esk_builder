@@ -487,13 +487,40 @@ build_kernel() {
     KERNEL_VERSION=$(make -s kernelversion | cut -d- -f1)
 }
 
+kpm_patcher() {
+    if [[ $KSU == "SUKI" ]]; then
+        info "Patching KPM for SukiSU variant..."
+        tmp="$(mktemp -d)" && cd "$tmp"
+        cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$tmp"/
+
+        KPM_PATCHER="https://github.com/SukiSU-Ultra/SukiSU_patch/raw/refs/heads/main/kpm/patch_linux"
+        curl -fsSL "$KPM_PATCHER" -o patch_linux
+
+        chmod +x ./patch_linux
+        ./patch_linux > /dev/null 2>&1
+        
+        [[ -f oImage ]] || error "patch_linux failed to produce patched Image"
+        mv oImage "$ANYKERNEL/Image"
+        
+        # Clean-up
+        rm -rf ./patch_linux
+        cd "$ANYKERNEL"
+        rm -rf "$tmp"
+        success "Patched KPM for SukiSU variant"
+    else
+        cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL"/
+    fi
+}
+
 package_anykernel() {
     local package_name="$1"
 
     info "Packaging AnyKernel3 zip..."
     pushd "$ANYKERNEL" >/dev/null
 
-    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" "$ANYKERNEL"/
+    # Patch KPM for SukiSU variant
+    # kpm_patcher() will copy the Image to AnyKernel folder
+    kpm_patcher
 
     info "Compressing kernel image..."
     zstd -19 -T0 --no-progress -o Image.zst Image >/dev/null 2>&1

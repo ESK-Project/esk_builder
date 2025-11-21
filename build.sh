@@ -307,7 +307,11 @@ EOF
 }
 
 prepare_dirs() {
-    RESET_DIR_LIST=("$KERNEL" "$ANYKERNEL" "$BUILD_TOOLS" "$MKBOOTIMG" "$OUT_DIR" "$BOOT_IMAGE")
+    RESET_DIR_LIST=(
+        "$KERNEL" "$ANYKERNEL" "$BUILD_TOOLS"
+        "$MKBOOTIMG" "$OUT_DIR" "$BOOT_IMAGE"
+        "$WORKSPACE/susfs" "$WORKSPACE/wild_patches"
+    )
     info "Resetting directories: ${RESET_DIR_LIST[*]}"
     for dir in "${RESET_DIR_LIST[@]}"; do
         reset_dir "$dir"
@@ -372,6 +376,64 @@ setup_toolchain() {
     export KBUILD_BUILD_HOST
 }
 
+apply_susfs() {
+    info "Applying SuSFS patches for $KSU variant"
+
+    local SUSFS_PATCHES
+
+    if [[ $KSU == "NEXT" ]]; then
+        info "Apply SuSFS patches for KernelSU Next"
+
+        SUSFS_PATCHES="$KERNEL_PATCHES/next/susfs"
+
+        local NEXT_PATCH="$SUSFS_PATCHES/10_enable_susfs_for_ksu.patch"
+        local WILD_PATCHES="$WORKSPACE/wild_patches"
+
+        pushd KernelSU-Next >/dev/null
+        patch -s -p1 --no-backup-if-mismatch <"$NEXT_PATCH" || true
+
+        info "Apply SuSFS fix patches for KernelSU Next"
+        git_clone "github.com:WildKernels/kernel_patches@main" "$WILD_PATCHES"
+
+        SUSFS_VERSION="$(grep -E '^#define SUSFS_VERSION' "$SUSFS_PATCHES/include/linux/susfs.h" | cut -d' ' -f3 | sed 's/\"//g')"
+        local SUSFS_FIX_PATCHES="$WILD_PATCHES/next/susfs_fix_patches/$SUSFS_VERSION"
+        [[ -d $SUSFS_FIX_PATCHES ]] || error "SuSFS fix patches are unavailable for SuSFS $SUSFS_VERSION"
+        for p in "$SUSFS_FIX_PATCHES"/*.patch; do
+            patch -s -p1 --no-backup-if-mismatch <"$p"
+        done
+
+        popd >/dev/null
+
+        # For SuSFS 1.5.12
+        config --disable CONFIG_KSU_SUSFS_SUS_SU
+    else
+        info "Apply SuSFS kernel-side patches"
+
+        local SUSFS_DIR="$WORKSPACE/susfs"
+        local SUSFS_BRANCH=gki-android12-5.10
+
+        SUSFS_PATCHES="$SUSFS_DIR/kernel_patches"
+
+        git_clone "gitlab.com:simonpunk/susfs4ksu@$SUSFS_BRANCH" "$SUSFS_DIR"
+
+        SUSFS_VERSION="$(grep -E '^#define SUSFS_VERSION' "$SUSFS_PATCHES/include/linux/susfs.h" | cut -d' ' -f3 | sed 's/\"//g')"
+
+        if [[ $KSU == "OFFICIAL" ]]; then
+            pushd KernelSU >/dev/null
+            info "Apply KernelSU-side SuSFS patches"
+            patch -s -p1 --no-backup-if-mismatch <"$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch"
+            popd >/dev/null
+        fi
+    fi
+
+    cp -R "$SUSFS_PATCHES"/fs/* ./fs
+    cp -R "$SUSFS_PATCHES"/include/* ./include
+    patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
+
+    config --enable CONFIG_KSU_SUSFS
+    success "SuSFS $SUSFS_VERSION applied!"
+}
+
 prebuild_kernel() {
     cd "$KERNEL"
 
@@ -411,44 +473,7 @@ prebuild_kernel() {
 
     # SuSFS
     if [[ $SUSFS == "true" ]]; then
-        info "Apply SuSFS kernel-side patches"
-        local SUSFS_DIR="$WORKSPACE/susfs"
-        local SUSFS_PATCHES="$SUSFS_DIR/kernel_patches"
-        local SUSFS_BRANCH=gki-android12-5.10
-        git_clone "gitlab.com:simonpunk/susfs4ksu@$SUSFS_BRANCH" "$SUSFS_DIR"
-        cp -R "$SUSFS_PATCHES"/fs/* ./fs
-        cp -R "$SUSFS_PATCHES"/include/* ./include
-        patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
-        SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
-
-        if [[ $KSU == "NEXT" || $KSU == "OFFICIAL" ]]; then
-            case "$KSU" in
-                NEXT) cd KernelSU-Next ;;
-                OFFICIAL) cd KernelSU ;;
-            esac
-            info "Apply KernelSU-side SuSFS patches ($KSU)"
-            patch -s -p1 --no-backup-if-mismatch <"$SUSFS_PATCHES/KernelSU/10_enable_susfs_for_ksu.patch" || true
-            cd "$KERNEL"
-        fi
-
-        if [[ $KSU == "NEXT" ]]; then
-            info "Apply SuSFS fix patches for KernelSU Next"
-            local WILD_PATCHES="$WORKSPACE/wild_patches"
-            local SUSFS_FIX_PATCHES="$WILD_PATCHES/next/susfs_fix_patches/$SUSFS_VERSION"
-            git_clone "github.com:WildKernels/kernel_patches@main" "$WILD_PATCHES"
-            [[ -d $SUSFS_FIX_PATCHES ]] || error "SuSFS fix patches are unavailable for SuSFS $SUSFS_VERSION"
-            for p in "$SUSFS_FIX_PATCHES"/*.patch; do
-                patch -s -p1 --no-backup-if-mismatch <"$p"
-            done
-        fi
-
-        cd "$KERNEL"
-        config --enable CONFIG_KSU_SUSFS
-
-        if [[ $KSU == "SUKI" || $KSU == "NEXT" ]]; then
-            config --disable CONFIG_KSU_SUSFS_SUS_SU
-        fi
-        success "SuSFS applied!"
+        apply_susfs
     else
         config --disable CONFIG_KSU_SUSFS
     fi
@@ -497,11 +522,11 @@ kpm_patcher() {
         curl -fsSL "$KPM_PATCHER" -o patch_linux
 
         chmod +x ./patch_linux
-        ./patch_linux > /dev/null 2>&1
-        
+        ./patch_linux >/dev/null 2>&1
+
         [[ -f oImage ]] || error "patch_linux failed to produce patched Image"
         mv oImage "$ANYKERNEL/Image"
-        
+
         # Clean-up
         rm -rf ./patch_linux
         cd "$ANYKERNEL"
@@ -610,7 +635,7 @@ notify_success() {
     local final_package="$1"
     local build_time="$2"
     # For indicating build variant (AnyKernel3, Boot Image)
-    local additional_tag="$3" 
+    local additional_tag="$3"
 
     local minutes=$((build_time / 60))
     local seconds=$((build_time % 60))

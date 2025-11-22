@@ -716,7 +716,9 @@ main() {
     # Github Actions metadata
     write_metadata "$PACKAGE_NAME"
 
-    [[ $TG_NOTIFY == "true" ]] && telegram_notify
+    if [[ $TG_NOTIFY == "true" ]]; then
+        telegram_notify
+    fi
 }
 
 main "$@"

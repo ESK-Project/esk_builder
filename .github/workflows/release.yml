@@ -11,27 +11,19 @@ jobs:
     strategy:
       matrix:
         variant:
-          - { name: "Non-KSU", KSU: "NONE", SUSFS: "false", LXC: "false" }
-          - { name: "Non-KSU-LXC", KSU: "NONE", SUSFS: "false", LXC: "true" }
-          - { name: "KSU", KSU: "OFFICIAL", SUSFS: "false", LXC: "false" }
-          - { name: "KSU-SUSFS", KSU: "OFFICIAL", SUSFS: "true", LXC: "false" }
-          - { name: "KSU-LXC", KSU: "OFFICIAL", SUSFS: "false", LXC: "true" }
-          - { name: "KSU-SUSFS-LXC", KSU: "OFFICIAL", SUSFS: "true", LXC: "true" }
-          - { name: "KSUN", KSU: "NEXT", SUSFS: "false", LXC: "false" }
-          - { name: "KSUN-SUSFS", KSU: "NEXT", SUSFS: "true", LXC: "false" }
-          - { name: "KSUN-LXC", KSU: "NEXT", SUSFS: "false", LXC: "true" }
-          - { name: "KSUN-SUSFS-LXC", KSU: "NEXT", SUSFS: "true", LXC: "true" }
-          - { name: "SUKISU", KSU: "SUKI", SUSFS: "false", LXC: "false" }
-          - { name: "SUKISU-SUSFS", KSU: "SUKI", SUSFS: "true", LXC: "false" }
-          - { name: "SUKISU-LXC", KSU: "SUKI", SUSFS: "false", LXC: "true" }
-          - { name: "SUKISU-SUSFS-LXC", KSU: "SUKI", SUSFS: "true",LXC: "true" }
+          - { name: "Non-KSU", KSU: "NONE", SUSFS: "false" }
+          - { name: "KSU", KSU: "OFFICIAL", SUSFS: "false" }
+          - { name: "KSU-SUSFS", KSU: "OFFICIAL", SUSFS: "true" }
+          - { name: "KSUN", KSU: "NEXT", SUSFS: "false" }
+          - { name: "KSUN-SUSFS", KSU: "NEXT", SUSFS: "true" }
+          - { name: "SUKISU", KSU: "SUKI", SUSFS: "false" }
+          - { name: "SUKISU-SUSFS", KSU: "SUKI", SUSFS: "true" }
     name: Build ${{ matrix.variant.name }} variant
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
       KSU: ${{ matrix.variant.KSU }}
       SUSFS: ${{ matrix.variant.SUSFS }}
-      LXC: ${{ matrix.variant.LXC }}
       BBG: "false"
       TG_NOTIFY: "false"
 
@@ -65,8 +57,8 @@ jobs:
           RELEASE_REPO: ${{ env.RELEASE_REPO }}
         run: |
           LATEST_TAG=$(gh api repos/$RELEASE_REPO/tags \
-           --header "Authorization: token $GH_TOKEN" \
-           --jq '.[0].name')
+            --header "Authorization: token $GH_TOKEN" \
+            --jq '.[0].name // ""')
 
           LATEST=${LATEST_TAG#v}
 
@@ -76,18 +68,21 @@ jobs:
             MAJOR=${LATEST%.*}
             MINOR=${LATEST#*.}
 
-            if (( MINOR == 9 )); then
-              (( MAJOR++ ))
+            MAJOR=$((MAJOR + 0))
+            MINOR=$((MINOR + 0))
+
+            if [ "$MINOR" -eq 9 ]; then
+              MAJOR=$((MAJOR + 1))
               MINOR=0
             else
-              (( MINOR++ ))
+              MINOR=$((MINOR + 1))
             fi
 
             RELEASE_TAG="v${MAJOR}.${MINOR}"
           fi
 
           echo "New tag: $RELEASE_TAG"
-          echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
 
       - name: Upload builds to release
         uses: softprops/action-gh-release@v2

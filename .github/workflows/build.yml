@@ -12,9 +12,6 @@ on:
       SUSFS:
         type: string
         required: true
-      LXC:
-        type: string
-        required: true
       BBG:
         type: string
         required: true
@@ -55,12 +52,6 @@ on:
 
       SUSFS:
         description: "Include SUSFS?"
-        default: "false"
-        type: choice
-        options: ["false", "true"]
-
-      LXC:
-        description: "Apply LXC patch?"
         default: "false"
         type: choice
         options: ["false", "true"]
@@ -178,4 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}-boot
-          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot.img
+          path: |
+            ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot-raw.img
+            ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot-gz.img
+            ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot-lz4.img

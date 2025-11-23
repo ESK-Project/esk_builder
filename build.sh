@@ -91,7 +91,8 @@ git_clone() {
 TG_NOTIFY="$(norm_bool "${TG_NOTIFY:-true}")"
 
 # Generate random build tags for Telegram
-BUILD_TAG="kernel_$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8)"
+BUILD_TAG="kernel_$(hexdump -v -e '/1 "%02x"' -n4 /dev/urandom)"
+info "Build tag generated: $BUILD_TAG"
 
 telegram_send_msg() {
     local text=$1

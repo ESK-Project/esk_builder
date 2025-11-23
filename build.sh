@@ -55,8 +55,12 @@ norm_bool() {
     esac
 }
 
+is_true() {
+    [[ $1 == true ]]
+}
+
 parse_bool() {
-    if [[ $1 == "true" ]]; then
+    if is_true "$1"; then
         echo "Enabled"
     else
         echo "Disabled"
@@ -93,7 +97,7 @@ telegram_send_msg() {
     local text=$1
     local resp err
 
-    [[ $TG_NOTIFY == false ]] && return 0
+    is_true "$TG_NOTIFY" || return 0
 
     resp=$(curl -sX POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
         -d chat_id="${TG_CHAT_ID}" \
@@ -112,7 +116,7 @@ telegram_upload_file() {
     local caption="$2"
     local resp err
 
-    [[ $TG_NOTIFY == false ]] && return 0
+    is_true "$TG_NOTIFY" || return 0
 
     resp=$(curl -sX POST -F document=@"$file" \
         "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
@@ -267,14 +271,13 @@ clang_lto() {
 ################################################################################
 
 init_logging() {
-    # Stream to file and console
-    exec > >(tee "$LOGFILE") 2>&1
+    exec > >(tee >(sed -u -r 's/\033\[[0-9;]*[A-Za-z]//g' >"$LOGFILE")) 2>&1
 }
 
 validate_env() {
     info "Validating environment variables..."
     : "${GH_TOKEN:?Required GitHub PAT missing: GH_TOKEN}"
-    if [[ "$TG_NOTIFY" == true ]]; then
+    if is_true "$TG_NOTIFY"; then
         : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
         : "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
     fi
@@ -445,13 +448,13 @@ prebuild_kernel() {
     local ksu_included="true"
     [[ $KSU == "NONE" ]] && ksu_included="false"
 
-    if [[ $ksu_included == "true" ]]; then
+    if is_true "$ksu_included"; then
         info "Setup KernelSU"
         case "$KSU" in
             OFFICIAL) install_ksu tiann/KernelSU main ;;
             NEXT) install_ksu KernelSU-Next/KernelSU-Next next ;;
             SUKI)
-                install_ksu SukiSU-Ultra/SukiSU-Ultra "$([[ $SUSFS == "true" ]] && echo "susfs-main" || echo "main")"
+                install_ksu SukiSU-Ultra/SukiSU-Ultra "$(is_true "$SUSFS" && echo "susfs-main" || echo "main")"
                 ;;
         esac
 
@@ -472,21 +475,21 @@ prebuild_kernel() {
     fi
 
     # SuSFS
-    if [[ $SUSFS == "true" ]]; then
+    if is_true "$SUSFS"; then
         apply_susfs
     else
         config --disable CONFIG_KSU_SUSFS
     fi
 
     # LXC
-    if [[ $LXC == "true" ]]; then
+    if is_true "$LXC"; then
         info "Apply LXC patch"
         patch -s -p1 --fuzz=3 --no-backup-if-mismatch <"$KERNEL_PATCHES/lxc_support.patch"
         success "LXC patch applied"
     fi
 
     # BBG
-    if [[ $BBG == "true" ]]; then
+    if is_true "$BBG"; then
         info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
         wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash >/dev/null 2>&1
         sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
@@ -658,7 +661,7 @@ notify_success() {
 
 *Options*
 ├ KernelSU: $(escape_md_v2 "$KSU")
-├ SuSFS: $([[ $SUSFS == "true" ]] && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled")
+├ SuSFS: $(is_true "$SUSFS" && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled")
 ├ BBG: $(parse_bool "$BBG")
 └ LXC: $(parse_bool "$LXC")
 
@@ -704,9 +707,9 @@ main() {
 
     # Build package name
     VARIANT="$KSU"
-    [[ $SUSFS == "true" ]] && VARIANT+="-SUSFS"
-    [[ $LXC == "true" ]] && VARIANT+="-LXC"
-    [[ $BBG == "true" ]] && VARIANT+="-BBG"
+    is_true "$SUSFS" && VARIANT+="-SUSFS"
+    is_true "$LXC" && VARIANT+="-LXC"
+    is_true "$BBG" && VARIANT+="-BBG"
     PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
 
     # Build flashable package
@@ -716,7 +719,7 @@ main() {
     # Github Actions metadata
     write_metadata "$PACKAGE_NAME"
 
-    if [[ $TG_NOTIFY == "true" ]]; then
+    if is_true "$TG_NOTIFY"; then
         telegram_notify
     fi
 }

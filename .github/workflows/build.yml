@@ -10,16 +10,16 @@ on:
         type: string
         required: true
       SUSFS:
-        type: string
+        type: boolean
         required: true
       LXC:
-        type: string
+        type: boolean
         required: true
       BBG:
-        type: string
+        type: boolean
         required: true
       TG_NOTIFY:
-        type: string
+        type: boolean
         required: true
 
     outputs:
@@ -55,27 +55,23 @@ on:
 
       SUSFS:
         description: "Include SUSFS?"
-        default: "false"
-        type: choice
-        options: ["false", "true"]
+        default: false
+        type: boolean
 
       LXC:
         description: "Apply LXC patch?"
-        default: "false"
-        type: choice
-        options: ["false", "true"]
+        default: false
+        type: boolean
       
       BBG:
         description: "Include Baseband-guard?"
-        default: "false"
-        type: choice
-        options: ["false", "true"]
+        default: false
+        type: boolean
 
       TG_NOTIFY:
         description: "Telegram Notify"
-        default: "true"
-        type: choice
-        options: ["false", "true"]
+        default: true
+        type: boolean
 
 env:
   DEBIAN_FRONTEND: noninteractive
@@ -104,7 +100,7 @@ jobs:
 
     steps:
       - name: Fail SUSFS requirement check
-        if: ${{ inputs.SUSFS == 'true' && inputs.KSU == 'NONE' }}
+        if: ${{ inputs.SUSFS == true && inputs.KSU == 'NONE' }}
         run: |
           echo "::error::Cannot use SUSFS without KernelSU"
           exit 1

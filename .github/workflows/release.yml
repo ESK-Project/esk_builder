@@ -20,7 +20,9 @@ jobs:
           - { name: "Non-KSU", KSU: "NONE", SUSFS: false, LXC: false }
           - { name: "Non-KSU-LXC", KSU: "NONE", SUSFS: false, LXC: true }
           - { name: "RKSU", KSU: "RKSU", SUSFS: false, LXC: false }
+          - { name: "RKSU-SUSFS", KSU: "RKSU", SUSFS: true, LXC: false }
           - { name: "RKSU-LXC", KSU: "RKSU", SUSFS: false, LXC: true }
+          - { name: "RKSU-SUSFS-LXC", KSU: "RKSU", SUSFS: true, LXC: true }
           - { name: "KSUN", KSU: "NEXT", SUSFS: false, LXC: false }
           - { name: "KSUN-SUSFS", KSU: "NEXT", SUSFS: true, LXC: false }
           - { name: "KSUN-LXC", KSU: "NEXT", SUSFS: false, LXC: true }

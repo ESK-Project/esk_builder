@@ -362,6 +362,7 @@ apply_susfs() {
 
     cd "$KERNEL"
     config --enable CONFIG_KSU_SUSFS
+    config --disable CONFIG_KSU_SUSFS_SPOOF_UNAME
 
     success "SuSFS applied!"
 }

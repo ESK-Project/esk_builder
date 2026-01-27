@@ -2,15 +2,17 @@
 #
 # Personal ESK Kernel build script
 #
-
 set -Ee
+
+# Workspace path
+WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck disable=SC1091
+source "$WORKSPACE/config.sh"
 
 ################################################################################
 # Generic helpers
 ################################################################################
-
-# Workspace path
-WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ANSI colors
 RED='\033[0;31m'
@@ -135,16 +137,6 @@ trap 'error "Build failed at line $LINENO: $BASH_COMMAND"' ERR
 ################################################################################
 # Build configuration
 ################################################################################
-
-# General
-KERNEL_NAME="ESK"
-KERNEL_DEFCONFIG="gki_defconfig"
-KBUILD_BUILD_USER="builder"
-KBUILD_BUILD_HOST="esk"
-TIMEZONE="Asia/Ho_Chi_Minh"
-RELEASE_REPO="ESK-Project/esk-releases"
-RELEASE_BRANCH="main"
-
 # --- Kernel flavour
 # KernelSU variant: NONE | RKSU | NEXT | SUKI
 KSU="${KSU:-NONE}"
@@ -154,12 +146,6 @@ SUSFS="$(norm_bool "${SUSFS:-false}")"
 LXC="$(norm_bool "${LXC:-false}")"
 # Include BBG?
 BBG="$(norm_bool "${BBG:-false}")"
-
-# --- Compiler
-# Clang LTO mode: thin | full
-CLANG_LTO="thin"
-# Parallel build jobs
-JOBS="$(nproc --all)"
 
 # --- Paths
 KERNEL_PATCHES="$WORKSPACE/kernel_patches"
@@ -419,7 +405,7 @@ prebuild_kernel() {
 
     # BBG
     if is_true "$BBG"; then
-        info "Setup Baseband Guard (BBG) LSM for KernelSU variants"
+        info "Setup Baseband Guard (BBG) LSM"
         wget -qO- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash > /dev/null 2>&1
         sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' security/Kconfig
         config --enable CONFIG_BBG

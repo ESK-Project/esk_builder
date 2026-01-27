@@ -22,29 +22,6 @@ on:
         type: boolean
         required: true
 
-    outputs:
-      kernel_version:
-        description: "Kernel version"
-        value: ${{ jobs.build.outputs.kernel_version }}
-      susfs_version:
-        description: "SUSFS version"
-        value: ${{ jobs.build.outputs.susfs_version }}
-      toolchain:
-        description: "Toolchain"
-        value: ${{ jobs.build.outputs.toolchain }}
-      build_date:
-        description: "Build timestamp"
-        value: ${{ jobs.build.outputs.build_date }}
-      release_repo:
-        description: "Release repo"
-        value: ${{ jobs.build.outputs.release_repo }}
-      release_branch:
-        description: "Release branch"
-        value: ${{ jobs.build.outputs.release_branch }}
-      kernel_name:
-        description: "Kernel name"
-        value: ${{ jobs.build.outputs.kernel_name }}
-
   workflow_dispatch:
     inputs:
       KSU:
@@ -88,15 +65,6 @@ jobs:
       TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
       TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-    outputs:
-      kernel_version: ${{ steps.build.outputs.kernel_version }}
-      susfs_version: ${{ steps.build.outputs.susfs_version }}
-      toolchain: ${{ steps.build.outputs.toolchain }}
-      build_date: ${{ steps.build.outputs.build_date }}
-      release_repo: ${{ steps.build.outputs.release_repo }}
-      release_branch: ${{ steps.build.outputs.release_branch }}
-      kernel_name: ${{ steps.build.outputs.kernel_name }}
 
     steps:
       - name: Fail SUSFS requirement check

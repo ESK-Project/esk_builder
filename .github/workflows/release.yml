@@ -20,9 +20,7 @@ jobs:
           - { name: "Non-KSU", KSU: "NONE", SUSFS: false, LXC: false }
           - { name: "Non-KSU-LXC", KSU: "NONE", SUSFS: false, LXC: true }
           - { name: "RKSU", KSU: "RKSU", SUSFS: false, LXC: false }
-          - { name: "RKSU-SUSFS", KSU: "RKSU", SUSFS: true, LXC: false }
           - { name: "RKSU-LXC", KSU: "RKSU", SUSFS: false, LXC: true }
-          - { name: "RKSU-SUSFS-LXC", KSU: "RKSU", SUSFS: true, LXC: true }
           - { name: "KSUN", KSU: "NEXT", SUSFS: false, LXC: false }
           - { name: "KSUN-SUSFS", KSU: "NEXT", SUSFS: true, LXC: false }
           - { name: "KSUN-LXC", KSU: "NEXT", SUSFS: false, LXC: true }
@@ -46,14 +44,6 @@ jobs:
     needs: build
     if: ${{ github.event.inputs.create_release }}
     runs-on: ubuntu-latest
-    env:
-      KERNEL_VER: ${{ needs.build.outputs.kernel_version }}
-      SUSFS_VER: ${{ needs.build.outputs.susfs_version }}
-      TOOLCHAIN: ${{ needs.build.outputs.toolchain }}
-      BUILD_DATE: ${{ needs.build.outputs.build_date }}
-      RELEASE_REPO: ${{ needs.build.outputs.release_repo }}
-      RELEASE_BRANCH: ${{ needs.build.outputs.release_branch }}
-      KERNEL_NAME: ${{ needs.build.outputs.kernel_name }}
 
     steps:
       - name: Checkout current repo
@@ -66,34 +56,23 @@ jobs:
         with:
           path: release_files
 
+      - name: Import build configs
+        run: |
+          source "$GITHUB_WORKSPACE/config.sh"
+          {
+            echo "KERNEL_NAME=$KERNEL_NAME"
+            echo "RELEASE_REPO=$RELEASE_REPO"
+            echo "RELEASE_BRANCH=$RELEASE_BRANCH"
+          } >> "$GITHUB_ENV"
+
       - name: Generate new tag
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           RELEASE_REPO: ${{ env.RELEASE_REPO }}
         run: |
-          LATEST_TAG=$(gh release list --repo "$RELEASE_REPO" --limit 100 --json tagName --jq '.[].tagName' | sort -V | tail -n1)
+          TAG_PY="$GITHUB_WORKSPACE/py/tag.py"
 
-          LATEST=${LATEST_TAG#v}
-
-          if [[ -z "$LATEST" ]]; then
-            RELEASE_TAG="v1.0"
-          else
-            MAJOR=${LATEST%.*}
-            MINOR=${LATEST#*.}
-
-            # Force them to be numbers
-            MAJOR=$((MAJOR + 0))
-            MINOR=$((MINOR + 0))
-
-            if [ "$MINOR" -ge 9 ]; then
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-            else
-              MINOR=$((MINOR + 1))
-            fi
-
-            RELEASE_TAG="v${MAJOR}.${MINOR}"
-          fi
+          RELEASE_TAG=$(python3 "$TAG_PY" "$RELEASE_REPO")
 
           echo "New tag: $RELEASE_TAG"
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
@@ -109,16 +88,6 @@ jobs:
             ### Key Changes
 
             - Add your key changes here.
-
-            ---
-
-            ### Build Information
-
-            | Component | Information |
-            |-----------|---------|
-            | **Kernel Version** | `${{ env.KERNEL_VER }}` |
-            | **Toolchain** | `${{ env.TOOLCHAIN }}` |
-            | **Build Date** | `${{ env.BUILD_DATE }}` |
 
             ---
 
@@ -145,6 +114,8 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
+          TG_PY="$GITHUB_WORKSPACE/py/tg.py"
+        
           escape_md_v2() {
             python3 - "$*" <<'PY'
           import sys, re
@@ -154,32 +125,12 @@ jobs:
           PY
           }
 
-          telegram_send_msg() {
-            local resp err
-
-            resp=$(curl -sX POST https://api.telegram.org/bot"${TG_BOT_TOKEN}"/sendMessage \
-                -d chat_id="${TG_CHAT_ID}" \
-                -d parse_mode="MarkdownV2" \
-                -d disable_web_page_preview=true \
-                -d text="$1")
-
-            if ! echo "$resp" | jq -e '.ok == true' > /dev/null; then
-                err=$(echo "$resp" | jq -r '.description')
-                echo "::error::telegram_send_msg(): ${err:-Unknown error} $*" >&2
-                exit 1
-            fi
-          }
-
           message=$(
-              cat<<EOF
+              cat <<EOF
           *$(escape_md_v2 "$KERNEL_NAME Release Build Completed!")*
-
-          *Kernel Version*: $(escape_md_v2 "${{ env.KERNEL_VER }}")
-          *Toolchain*: $(escape_md_v2 "${{ env.TOOLCHAIN }}")
-          *Build date*: $(escape_md_v2 "${{ env.BUILD_DATE }}")
 
           [GitHub Release]($(escape_md_v2 "https://github.com/${{ env.RELEASE_REPO }}/releases/${{ env.RELEASE_TAG }}"))
           EOF
           )
           
-          telegram_send_msg "$message"
+          printf '%s' "$message" | python3 "$TG_PY" msg

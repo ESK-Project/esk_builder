@@ -1,0 +1,11 @@
+# Build outputs
+/out/
+/boot_image/
+/clang/
+/kernel/
+/anykernel3/
+/build-tools/
+/mkbootimg/
+/susfs/
+*.log
+/github.env

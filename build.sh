@@ -57,6 +57,17 @@ parse_bool() {
     fi
 }
 
+# Normalize bool from input value, defaulting if empty
+norm_default() {
+    local value="${1:-$2}"
+    norm_bool "$value"
+}
+
+# Check if script is running in Github Action
+is_ci() {
+    [[ ${GITHUB_ACTIONS:-} == "true" ]]
+}
+
 # ksu_branch <susfs_branch> <main_branch>
 ksu_branch() {
     if is_true "$SUSFS"; then
@@ -78,6 +89,7 @@ git_clone() {
     local source="$1"
     local dest="$2"
     local host repo branch
+    [[ -d "$dest/.git" ]] && return 0
     IFS=':@' read -r host repo branch <<< "$source"
     git clone -q --depth=1 --single-branch --no-tags \
         "https://${host}/${repo}" -b "${branch}" "${dest}"
@@ -87,8 +99,6 @@ git_clone() {
 # Telegram helpers
 ################################################################################
 
-TG_NOTIFY="$(norm_bool "${TG_NOTIFY:-true}")"
-
 # Generate random build tags for Telegram
 BUILD_TAG="kernel_$(hexdump -v -e '/1 "%02x"' -n4 /dev/urandom)"
 info "Build tag generated: $BUILD_TAG"
@@ -97,7 +107,7 @@ info "Build tag generated: $BUILD_TAG"
 TG_PY="$WORKSPACE/py/tg.py"
 
 tg_run_line() {
-    if [[ -n ${GITHUB_SERVER_URL:-} && -n ${GITHUB_REPOSITORY:-} && -n ${GITHUB_RUN_ID:-} ]]; then
+    if is_ci; then
         printf '🔗 [Workflow run](%s)\n' "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
     else
         printf '🔗 Workflow run: Not available\n'
@@ -146,6 +156,7 @@ trap 'error "Build failed at line $LINENO: $BASH_COMMAND"' ERR
 ################################################################################
 # Build configuration
 ################################################################################
+
 # --- Kernel flavour
 # KernelSU variant: NONE | RKSU | NEXT | SUKI
 KSU="${KSU:-NONE}"
@@ -190,8 +201,19 @@ MAKE_ARGS=(
 # Initialize build environment
 ################################################################################
 
+# Default setup
+if is_ci; then
+    TG_NOTIFY="$(norm_default "${TG_NOTIFY-}" "true")"
+    RESET_SOURCES="$(norm_default "${RESET_SOURCES-}" "true")"
+else
+    TG_NOTIFY="$(norm_default "${TG_NOTIFY-}" "false")"
+    RESET_SOURCES="$(norm_default "${RESET_SOURCES-}" "false")"
+fi
+
+info "Mode: $(is_ci && echo CI || echo local)"
+
 # Set timezone
-sudo timedatectl set-timezone "$TIMEZONE" || export TZ="$TIMEZONE"
+export TZ="$TIMEZONE"
 
 ################################################################################
 # Feature-specific helpers
@@ -238,7 +260,16 @@ init_logging() {
 
 validate_env() {
     info "Validating environment variables..."
-    : "${GH_TOKEN:?Required GitHub PAT missing: GH_TOKEN}"
+    if [[ -z ${GH_TOKEN:-} ]]; then
+        if [[ -x "$CLANG_BIN/clang" ]]; then
+            :
+        elif is_ci; then
+            error "Required Github PAT missing: GH_TOKEN"
+        else
+            warn "GH_TOKEN not set. Github requests may be rate-limited."
+        fi
+    fi
+
     if is_true "$TG_NOTIFY"; then
         : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
         : "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
@@ -283,15 +314,25 @@ EOF
 }
 
 prepare_dirs() {
-    RESET_DIR_LIST=(
-        "$KERNEL" "$ANYKERNEL" "$BUILD_TOOLS"
-        "$MKBOOTIMG" "$OUT_DIR" "$BOOT_IMAGE"
-        "$WORKSPACE/susfs" "$WORKSPACE/wild_patches"
+    OUT_DIR_LIST=(
+        "$OUT_DIR" "$BOOT_IMAGE" "$ANYKERNEL"
     )
-    info "Resetting directories: $(printf '%s ' "${RESET_DIR_LIST[@]##*/}")"
-    for dir in "${RESET_DIR_LIST[@]}"; do
+    SRC_DIR_LIST=(
+        "$KERNEL" "$BUILD_TOOLS"
+        "$MKBOOTIMG" "$WORKSPACE/susfs"
+    )
+
+    info "Resetting output directories: $(printf '%s ' "${OUT_DIR_LIST[@]##*/}")"
+    for dir in "${OUT_DIR_LIST[@]}"; do
         reset_dir "$dir"
     done
+
+    if is_true "$RESET_SOURCES"; then
+        info "Resetting source directories: $(printf '%s ' "${SRC_DIR_LIST[@]##*/}")"
+        for dir in "${SRC_DIR_LIST[@]}"; do
+            reset_dir "$dir"
+        done
+    fi
 }
 
 fetch_sources() {
@@ -307,10 +348,24 @@ fetch_sources() {
 }
 
 setup_toolchain() {
+    _use_toolchain() {
+        export PATH="$CLANG_BIN:$PATH"
+        COMPILER_STRING="$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//')"
+        export KBUILD_BUILD_USER KBUILD_BUILD_HOST
+    }
+
+    if [[ -x "$CLANG_BIN/clang" ]]; then
+        info "Using existing AOSP Clang toolchain"
+        _use_toolchain
+        return 0
+    fi
+
     info "Fetching AOSP Clang toolchain"
     local clang_url
+    local auth_header=()
+    [[ -n ${GH_TOKEN:-} ]] && auth_header=(-H "Authorization: Bearer $GH_TOKEN")
     clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
-        -H "Authorization: Bearer $GH_TOKEN" \
+        "${auth_header[@]}" \
         | grep "browser_download_url" \
         | grep ".tar.gz" \
         | cut -d '"' -f 4)
@@ -343,11 +398,7 @@ setup_toolchain() {
     tar -xzf "$WORKSPACE/clang-archive" -C "$CLANG"
     rm -f "$WORKSPACE/clang-archive"
 
-    export PATH="${CLANG_BIN}:$PATH"
-
-    COMPILER_STRING="$("$CLANG_BIN/clang" -v 2>&1 | head -n 1 | sed 's/(https..*//')"
-    export KBUILD_BUILD_USER
-    export KBUILD_BUILD_HOST
+    _use_toolchain
 }
 
 apply_susfs() {
@@ -362,7 +413,6 @@ apply_susfs() {
     cp -R "$SUSFS_PATCHES"/include/* ./include
 
     patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
-    SUSFS_VERSION=$(grep -E '^#define SUSFS_VERSION' ./include/linux/susfs.h | cut -d' ' -f3 | sed 's/"//g')
 
     cd "$KERNEL"
     config --enable CONFIG_KSU_SUSFS
@@ -413,8 +463,6 @@ prepare_build() {
 
 build_kernel() {
     cd "$KERNEL"
-
-    SECONDS=0
 
     info "Generate defconfig: $KERNEL_DEFCONFIG"
     make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" > /dev/null 2>&1
@@ -552,7 +600,7 @@ EOF
 }
 
 telegram_notify() {
-    local build_time="$SECONDS"
+    local build_time="$1"
 
     # AnyKernel3
     local ak3_package="$OUT_DIR/$PACKAGE_NAME-AnyKernel3.zip"
@@ -572,6 +620,8 @@ telegram_notify() {
 ################################################################################
 
 main() {
+    SECONDS=0
+
     init_logging
     validate_env
     send_start_msg
@@ -594,8 +644,14 @@ main() {
     # Github Actions metadata
     write_metadata "$PACKAGE_NAME"
 
+    local build_time="$SECONDS"
+
     if is_true "$TG_NOTIFY"; then
-        telegram_notify
+        telegram_notify "$build_time"
+    else
+        local min=$((build_time / 60))
+        local sec=$((build_time % 60))
+        success "Build success in ${min}m ${sec}s"
     fi
 }
 

@@ -26,9 +26,9 @@ on:
     inputs:
       KSU:
         description: "KernelSU variant"
-        default: "NONE"
+        default: "VNL"
         type: choice
-        options: ["NONE", "RKSU", "NEXT", "SUKI"]
+        options: ["VNL", "KSU"]
 
       SUSFS:
         description: "Include SUSFS?"

@@ -158,8 +158,8 @@ trap 'error "Build failed at line $LINENO: $BASH_COMMAND"' ERR
 ################################################################################
 
 # --- Kernel flavour
-# KernelSU variant: NONE | RKSU | NEXT | SUKI
-KSU="${KSU:-NONE}"
+# Kernel flavour: VNL | KSU
+KSU="${KSU:-VNL}"
 # Include SuSFS?
 SUSFS="$(norm_bool "${SUSFS:-false}")"
 # Apply LXC patch?
@@ -280,14 +280,14 @@ validate_env() {
     fi
 
     # Config checks
-    if is_true "$SUSFS" && [[ "$KSU" == "NONE" ]]; then
+    if is_true "$SUSFS" && [[ "$KSU" == "VNL" ]]; then
         error "Cannot use SUSFS without KernelSU"
     fi
 }
 
 send_start_msg() {
     local ksu_included="true"
-    [[ $KSU == "NONE" ]] && ksu_included="false"
+    [[ $KSU == "VNL" ]] && ksu_included="false"
 
     local start_msg
     start_msg=$(
@@ -412,11 +412,6 @@ apply_susfs() {
 
     patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$SUSFS_PATCHES"/50_add_susfs_in_gki-android*-*.patch
 
-    # Apply pershoot's SUSFS patch for KernelSU Next
-    if [[ "$KSU" == "NEXT" ]]; then
-        patch -s -p1 < "$KERNEL_PATCHES"/pershoot-susfs.patch
-    fi
-
     config --enable CONFIG_KSU_SUSFS
 
     success "SuSFS applied!"
@@ -431,17 +426,12 @@ prepare_build() {
 
     # KernelSU
     local ksu_included="true"
-    [[ $KSU == "NONE" ]] && ksu_included="false"
+    [[ $KSU == "VNL" ]] && ksu_included="false"
 
     if is_true "$ksu_included"; then
         info "Setup KernelSU"
-        case "$KSU" in
-            RKSU) install_ksu rsuntk/KernelSU "$(ksu_branch "susfs-rksu-master" "main")" ;;
-            NEXT) install_ksu pershoot/KernelSU-Next "$(ksu_branch "dev-susfs" "dev")" ;;
-            SUKI) install_ksu SukiSU-Ultra/SukiSU-Ultra "$(ksu_branch "builtin" "main")" ;;
-        esac
+        install_ksu ESK-Project/ReSukiSU "main"
         config --enable CONFIG_KSU
-
         success "KernelSU added"
     fi
 
@@ -501,10 +491,10 @@ package_anykernel() {
     )
     for binary in "${UPX_LIST[@]}"; do
         local file="$ANYKERNEL/$binary"
-        [[ -f $file ]] || {
+        if [[ -f $file ]]; then
             warn "[UPX] Binary not found: $binary"
             continue
-        }
+        fi
         if upx -9 --lzma --no-progress "$file" > /dev/null 2>&1; then
             success "[UPX] Compressed: $(basename "$binary")"
         else

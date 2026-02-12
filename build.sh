@@ -213,6 +213,10 @@ info "Mode: $(is_ci && echo CI || echo local)"
 # Set timezone
 export TZ="$TIMEZONE"
 
+# Convenient variable 
+ksu_included="true"
+[[ $KSU == "VNL" ]] && ksu_included="false"
+
 ################################################################################
 # Feature-specific helpers
 ################################################################################
@@ -286,9 +290,6 @@ validate_env() {
 }
 
 send_start_msg() {
-    local ksu_included="true"
-    [[ $KSU == "VNL" ]] && ksu_included="false"
-
     local start_msg
     start_msg=$(
         cat << EOF
@@ -303,7 +304,7 @@ $(tg_run_line)
 └ Jobs: $(escape_md_v2 "$JOBS")
 
 ⚙️ *Features*
-├ KernelSU: $(escape_md_v2 "$(parse_bool "$ksu_included") | $KSU")
+├ KernelSU: $(parse_bool "$ksu_included")
 ├ SuSFS: $(parse_bool "$SUSFS")
 └ LXC: $(parse_bool "$LXC")
 EOF
@@ -423,10 +424,6 @@ prepare_build() {
     # Defconfig existence check
     DEFCONFIG_FILE="$KERNEL/arch/arm64/configs/$KERNEL_DEFCONFIG"
     [[ -f $DEFCONFIG_FILE ]] || error "Defconfig not found: $KERNEL_DEFCONFIG"
-
-    # KernelSU
-    local ksu_included="true"
-    [[ $KSU == "VNL" ]] && ksu_included="false"
 
     if is_true "$ksu_included"; then
         info "Setup KernelSU"
@@ -581,7 +578,7 @@ $(tg_run_line)
 └ Compiler: $(escape_md_v2 "$COMPILER_STRING")
 
 📦 *Options*
-├ KernelSU: $(escape_md_v2 "$KSU")
+├ KernelSU: $(parse_bool "$ksu_included")
 ├ SuSFS: $(is_true "$SUSFS" && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled")
 └ LXC: $(parse_bool "$LXC")
 EOF

@@ -476,29 +476,6 @@ package_anykernel() {
     rm -f ./Image
     sha256sum Image.zst > Image.zst.sha256
 
-    info "[UPX] Compressing AnyKernel3 static binaries..."
-    local UPX_LIST=(
-        tools/zstd
-        tools/fec
-        tools/httools_static
-        tools/lptools_static
-        tools/magiskboot
-        tools/magiskpolicy
-        tools/snapshotupdater_static
-    )
-    for binary in "${UPX_LIST[@]}"; do
-        local file="$ANYKERNEL/$binary"
-        if [[ -f $file ]]; then
-            warn "[UPX] Binary not found: $binary"
-            continue
-        fi
-        if upx -9 --lzma --no-progress "$file" > /dev/null 2>&1; then
-            success "[UPX] Compressed: $(basename "$binary")"
-        else
-            warn "[UPX] Failed: $(basename "$binary")"
-        fi
-    done
-
     zip -r9q -T -X -y -n .zst "$OUT_DIR/$package_name-AnyKernel3.zip" . -x '.git/*' '*.log'
 
     popd > /dev/null

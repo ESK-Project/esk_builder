@@ -22,10 +22,9 @@ on:
   workflow_dispatch:
     inputs:
       KSU:
-        description: "KernelSU variant"
-        default: "VNL"
-        type: choice
-        options: ["VNL", "KSU"]
+        description: "Include KernelSU?"
+        default: false
+        type: boolean
 
       SUSFS:
         description: "Include SUSFS?"

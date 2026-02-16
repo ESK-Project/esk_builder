@@ -17,12 +17,12 @@ jobs:
     strategy:
       matrix:
         variant:
-          - { name: "VNL", KSU: "VNL", SUSFS: false, LXC: false }
-          - { name: "VNL-LXC", KSU: "VNL", SUSFS: false, LXC: true }
-          - { name: "KSU", KSU: "KSU", SUSFS: false, LXC: false }
-          - { name: "KSU-SUSFS", KSU: "KSU", SUSFS: true, LXC: false }
-          - { name: "KSU-LXC", KSU: "KSU", SUSFS: false, LXC: true }
-          - { name: "KSU-SUSFS-LXC", KSU: "KSU", SUSFS: true, LXC: true }
+          - { name: "VNL", KSU: false, SUSFS: false, LXC: false }
+          - { name: "VNL-LXC", KSU: false, SUSFS: false, LXC: true }
+          - { name: "KSU", KSU: true, SUSFS: false, LXC: false }
+          - { name: "KSU-SUSFS", KSU: true, SUSFS: true, LXC: false }
+          - { name: "KSU-LXC", KSU: true, SUSFS: false, LXC: true }
+          - { name: "KSU-SUSFS-LXC", KSU: true, SUSFS: true, LXC: true }
     name: Build ${{ matrix.variant.name }} variant
     uses: ./.github/workflows/build.yml
     secrets: inherit

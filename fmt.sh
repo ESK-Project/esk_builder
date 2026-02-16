@@ -10,5 +10,7 @@ command -v shfmt > /dev/null || {
 # Get script directory
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd -P)"
 
-# Format build.sh with shfmt
-exec shfmt -w -i 4 -ci -bn -sr "$SCRIPT_DIR"/*.sh
+# Format all scripts
+shfmt -w -i 4 -ci -bn -sr \
+    "$SCRIPT_DIR"/*.sh \
+    "$SCRIPT_DIR"/build/*.sh

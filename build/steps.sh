@@ -12,7 +12,7 @@ init_build() {
     info "Build tag generated: $BUILD_TAG"
 
     # Kernel flavour
-    KSU="${KSU:-false}"
+    KSU="$(norm_bool "${KSU:-false}")"
     SUSFS="$(norm_bool "${SUSFS:-false}")"
     LXC="$(norm_bool "${LXC:-false}")"
 
@@ -68,7 +68,7 @@ validate_env() {
     fi
 
     # Config checks
-    if is_true "$SUSFS" && ! $KSU; then
+    if is_true "$SUSFS" && ! is_true "$KSU"; then
         error "Cannot use SUSFS without KernelSU"
     fi
 }

@@ -39,6 +39,9 @@ init_build() {
 }
 
 init_logging() {
+    # Clean logfile before writing 
+    : > "$LOGFILE"
+
     exec > >(tee -a "$LOGFILE") 2>&1
     step 2 "Init logging"
 }

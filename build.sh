@@ -36,7 +36,7 @@ main() {
     build_kernel
 
     # Build package name
-    VARIANT="$KSU"
+    VARIANT="$(is_true "$KSU" && echo "KSU" || echo "VNL")"
     is_true "$SUSFS" && VARIANT+="-SUSFS"
     is_true "$LXC" && VARIANT+="-LXC"
     PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"

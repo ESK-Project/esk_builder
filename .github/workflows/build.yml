@@ -103,9 +103,20 @@ jobs:
           chmod +x build.sh
           ./build.sh
           
-          file="$GITHUB_WORKSPACE/github.env"
-          [[ -f "$file" ]] || { echo "::error::github.env missing"; exit 1; }
-          cat "$file" >> "$GITHUB_OUTPUT"
+          file="$GITHUB_WORKSPACE/github.json"
+          [[ -f "$file" ]] || { echo "::error::github.json missing"; exit 1; }
+          python3 - "$file" "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1]) as f:
+              data = json.load(f)
+
+          keys = ["name", "variant", "out_dir", "package_name"]
+          with open(sys.argv[2], "a") as out:
+              for key in keys:
+                  out.write(f"{key}={data[key]}\n")
+          PY
 
       - name: Save ccache
         if: ${{ always() && steps.restore-ccache.outputs.cache-hit != 'true' }}
@@ -113,6 +124,13 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+
+      - name: Upload GitHub metadata artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: github-metadata-${{ steps.build.outputs.variant }}
+          path: ${{ github.workspace }}/github.json
+          compression-level: 0
 
       - name: Upload AnyKernel3 artifact
         uses: actions/upload-artifact@v6

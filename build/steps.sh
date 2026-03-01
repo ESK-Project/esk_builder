@@ -39,7 +39,7 @@ init_build() {
 }
 
 init_logging() {
-    # Clean logfile before writing 
+    # Clean logfile before writing
     : > "$LOGFILE"
 
     exec > >(tee -a "$LOGFILE") 2>&1
@@ -322,17 +322,7 @@ write_metadata() {
     step 12 "Write metadata"
 
     local package_name="$1"
-    cat > "$GITHUB_ENV_FILE" << EOF
-kernel_version=$KERNEL_VERSION
-kernel_name=$KERNEL_NAME
-toolchain=$COMPILER_STRING
-package_name=$package_name
-variant=$VARIANT
-name=$KERNEL_NAME
-out_dir=$OUT_DIR
-release_repo=$RELEASE_REPO
-release_branch=$RELEASE_BRANCH
-EOF
+    github_write_metadata "$package_name"
 }
 
 notify_success() {

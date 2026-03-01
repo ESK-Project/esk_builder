@@ -49,14 +49,26 @@ jobs:
         with:
           path: release_files
 
-      - name: Import build configs
+      - name: Import build metadata
         run: |
-          source "$GITHUB_WORKSPACE/config.sh"
-          {
-            echo "KERNEL_NAME=$KERNEL_NAME"
-            echo "RELEASE_REPO=$RELEASE_REPO"
-            echo "RELEASE_BRANCH=$RELEASE_BRANCH"
-          } >> "$GITHUB_ENV"
+          metadata_file="release_files/github-metadata-VNL/github.json"
+          [[ -f "$metadata_file" ]] || { echo "::error::github.json missing"; exit 1; }
+
+          python3 - "$metadata_file" "$GITHUB_ENV" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1]) as f:
+              data = json.load(f)
+
+          keys = ["kernel_name", "kernel_version", "toolchain", "release_repo", "release_branch"]
+          with open(sys.argv[2], "a") as out:
+              for key in keys:
+                  out.write(f"{key.upper()}={data[key]}\n")
+          PY
+
+          # Filter metadata from release assets
+          find release_files -type f -name '*.json' -delete
 
       - name: Generate new tag
         env:
@@ -83,6 +95,14 @@ jobs:
             - Add your key changes here.
 
             ---
+
+            ### Build Information
+
+            | Field | Value |
+            |------|-------|
+            | **Kernel Name** | ${{ env.KERNEL_NAME }} |
+            | **Kernel Version** | ${{ env.KERNEL_VERSION }} |
+            | **Compiler** | ${{ env.TOOLCHAIN }} |
 
             ### Variants Suffixes
 

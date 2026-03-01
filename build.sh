@@ -13,6 +13,7 @@ WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$WORKSPACE/config.sh"
 source "$WORKSPACE/build/utils.sh"
 source "$WORKSPACE/build/telegram.sh"
+source "$WORKSPACE/build/github.sh"
 source "$WORKSPACE/build/steps.sh"
 
 # Error handling

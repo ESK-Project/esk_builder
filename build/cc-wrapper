@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+
+WORKSPACE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+
+export LD_PRELOAD="$WORKSPACE/prebuilts/libfakestat.so $WORKSPACE/prebuilts/libfaketimeMT.so.1"
+export FAKESTAT="2026-03-14 12:00:00"
+export FAKETIME="@2026-03-14 12:00:00"
+
+exec ccache "$WORKSPACE/clang/bin/clang" "$@"

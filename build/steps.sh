@@ -6,7 +6,7 @@
 ################################################################################
 
 setup_ccache() {
-    export CCACHE_DIR="$WORKSPACE/.ccache"
+    export CCACHE_DIR="${CCACHE_DIR:-$WORKSPACE/.ccache}"
     export CCACHE_BASEDIR="$WORKSPACE"
     export CCACHE_COMPILERCHECK="content"
     export CCACHE_SLOPPINESS="file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macro"

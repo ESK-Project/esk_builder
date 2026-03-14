@@ -338,7 +338,7 @@ package_bootimg() {
 write_metadata() {
     step 12 "Write metadata"
 
-    META_PY="$WORKSPACE/py/github.py"
+    META_PY="$WORKSPACE/py/meta.py"
     META_FILE="$WORKSPACE/github.json"
 
     local package_name="$1"

@@ -66,7 +66,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq \
-            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential python3-requests
+            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential python3-requests libfaketime
         
       - name: Compute ccache key
         run: |

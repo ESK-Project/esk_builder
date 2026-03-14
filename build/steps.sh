@@ -101,18 +101,10 @@ send_start_msg() {
         cat << EOF
 🚧 *$(escape_md_v2 "$KERNEL_NAME Kernel Build Started!")*
 
-🏷️ *Tags*: \#$(escape_md_v2 "$BUILD_TAG")
+🏷️ \#$(escape_md_v2 "$BUILD_TAG")
 $(tg_run_line)
-
-🧱 *Build Info*
-├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
-├ Defconfig: $(escape_md_v2 "$KERNEL_DEFCONFIG")
-└ Jobs: $(escape_md_v2 "$JOBS")
-
-⚙️ *Features*
-├ KernelSU: $(parse_bool "$KSU")
-├ SuSFS: $(parse_bool "$SUSFS")
-└ LXC: $(parse_bool "$LXC")
+Defconfig: $(escape_md_v2 "$KERNEL_DEFCONFIG")
+Features: KSU $(parse_bool "$KSU"), SuSFS $(parse_bool "$SUSFS"), LXC $(parse_bool "$LXC")
 EOF
     )
     telegram_send_msg "$start_msg"
@@ -367,21 +359,12 @@ notify_success() {
         cat << EOF
 ✅ *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
-🏷️ *Tags*: \#$(escape_md_v2 "$BUILD_TAG") \#$(escape_md_v2 "$additional_tag")
+🏷️ \#$(escape_md_v2 "$BUILD_TAG") \#$(escape_md_v2 "$additional_tag")
 $(tg_run_line)
-
-🧱 *Build*
-├ Builder: $(escape_md_v2 "$KBUILD_BUILD_USER@$KBUILD_BUILD_HOST")
-└ Build time: $(escape_md_v2 "${minutes}m ${seconds}s")
-
-🐧 *Kernel*
-├ Linux version: $(escape_md_v2 "$KERNEL_VERSION")
-└ Compiler: $(escape_md_v2 "$COMPILER_STRING")
-
-📦 *Options*
-├ KernelSU: $(parse_bool "$KSU")
-├ SuSFS: $(is_true "$SUSFS" && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled")
-└ LXC: $(parse_bool "$LXC")
+Time: $(escape_md_v2 "${minutes}m ${seconds}s")
+Kernel: $(escape_md_v2 "$KERNEL_VERSION")
+Compiler: $(escape_md_v2 "$COMPILER_STRING")
+Features: KSU $(parse_bool "$KSU"), SuSFS $(is_true "$SUSFS" && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled"), LXC $(parse_bool "$LXC")
 EOF
     )
 

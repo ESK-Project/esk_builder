@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 WORKSPACE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
-export LD_PRELOAD="$WORKSPACE/prebuilts/libfakestat.so $(find /usr/lib /lib -name libfaketimeMT.so.1 2>/dev/null | head -n 1)"
+export LD_PRELOAD="$WORKSPACE/prebuilts/libfakestat.so $LIBFAKETIME"
 export FAKESTAT="2026-03-14 12:00:00"
 export FAKETIME="@2026-03-14 12:00:00"
 

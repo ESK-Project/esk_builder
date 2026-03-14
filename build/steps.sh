@@ -31,6 +31,7 @@ init_build() {
 
     # ccache setup
     setup_ccache
+    export LIBFAKETIME="$(find /usr/lib /lib -name libfaketimeMT.so.1 2>/dev/null | head -n 1)"
 
     # Make arguments
     MAKE_ARGS=(

@@ -272,7 +272,7 @@ build_kernel() {
     cd "$KERNEL"
 
     info "Generate defconfig: $KERNEL_DEFCONFIG"
-    make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG" > /dev/null 2>&1
+    make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG"
 
     info "Building Image..."
     make "${MAKE_ARGS[@]}" Image

@@ -5,6 +5,19 @@
 # Build steps
 ################################################################################
 
+setup_ccache() {
+    export CCACHE_DIR="${CCACHE_DIR:-$WORKSPACE/.ccache}"
+    export CCACHE_BASEDIR="$WORKSPACE"
+    export CCACHE_COMPILERCHECK="content"
+    export CCACHE_SLOPPINESS="file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macro"
+
+    mkdir -p "$CCACHE_DIR"
+    ccache --max-size "2G"
+
+    ccache --zero-stats
+    ccache --show-config
+}
+
 init_build() {
     step 1 "Init build"
 
@@ -16,11 +29,14 @@ init_build() {
     SUSFS="$(norm_bool "${SUSFS:-false}")"
     LXC="$(norm_bool "${LXC:-false}")"
 
+    # ccache setup
+    setup_ccache
+
     # Make arguments
     MAKE_ARGS=(
         -j"$JOBS" O="$KERNEL_OUT" ARCH="arm64"
-        CC="ccache clang" CROSS_COMPILE="aarch64-linux-gnu-"
-        LLVM="1" LD="$CLANG_BIN/ld.lld"
+        CC="$WORKSPACE/build/cc-wrapper" CROSS_COMPILE="aarch64-linux-gnu-"
+        LLVM="1" LD="$WORKSPACE/build/ld-wrapper"
     )
 
     # Environment default setting
@@ -261,6 +277,7 @@ build_kernel() {
     info "Building Image..."
     make "${MAKE_ARGS[@]}" Image
     success "Kernel built successfully"
+    ccache --show-stats
 
     KERNEL_VERSION=$(make -s kernelversion | cut -d- -f1)
 }
@@ -321,8 +338,18 @@ package_bootimg() {
 write_metadata() {
     step 12 "Write metadata"
 
+    META_PY="$WORKSPACE/py/meta.py"
+    META_FILE="$WORKSPACE/github.json"
+
     local package_name="$1"
-    github_write_metadata "$package_name"
+    local anykernel_zip="$package_name-AnyKernel3.zip"
+    local boot_image="$package_name-boot.img"
+
+    python3 "$META_PY" \
+        "$META_FILE" \
+        "$KERNEL_VERSION" "$KERNEL_NAME" "$COMPILER_STRING" \
+        "$package_name" "$VARIANT" "$KERNEL_NAME" "$OUT_DIR" \
+        "$RELEASE_REPO" "$RELEASE_BRANCH" "$anykernel_zip" "$boot_image"
 }
 
 notify_success() {

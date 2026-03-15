@@ -19,8 +19,12 @@ KBUILD_BUILD_HOST="esk"
 TIMEZONE="Asia/Ho_Chi_Minh"
 
 # Where release artifacts are published
-RELEASE_REPO="ESK-Project/esk-releases"
 RELEASE_BRANCH="main"
+
+################################################################################
+# Build target
+################################################################################
+BUILD_TARGET="${BUILD_TARGET:-xaga}"
 
 ################################################################################
 # Build options
@@ -35,7 +39,6 @@ JOBS="${JOBS:-$(nproc --all)}"
 # Source
 ################################################################################
 # Format: <host>:<owner/repo>@<ref>
-KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@16.2"
 ANYKERNEL_REPO="github.com:ESK-Project/AnyKernel3@android12-5.10"
 BUILD_TOOLS_REPO="android.googlesource.com:kernel/prebuilts/build-tools@main-kernel-build-2024"
 MKBOOTIMG_REPO="android.googlesource.com:platform/system/tools/mkbootimg@main-kernel-build-2024"
@@ -44,6 +47,23 @@ SUSFS_REPO="gitlab.com:simonpunk/susfs4ksu@gki-android12-5.10"
 # Other sources
 GKI_URL="https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-2025-09_r1.zip"
 LIBFAKESTAT_URL="https://github.com/cctv18/libfakestat/releases/download/libfakestat-build-251027213612/libfakestat.tar.gz"
+
+case "$BUILD_TARGET" in
+    xaga)
+        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@16.2"
+        RELEASE_REPO="ESK-Project/esk-releases"
+        BOOT_MODE="single"
+        ;;
+    generic)
+        KERNEL_REPO="github.com:ESK-Project/android12-5.10-gki@main"
+        RELEASE_REPO="ESK-Project/gki-releases"
+        BOOT_MODE="multi"
+        ;;
+    *)
+        echo "Unknown build target: $BUILD_TARGET" >&2
+        exit 1
+        ;;
+esac
 
 ################################################################################
 # Paths

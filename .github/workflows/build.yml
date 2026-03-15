@@ -6,8 +6,11 @@ permissions:
 on:
   workflow_call:
     inputs:
-      KSU:
+      BUILD_TARGET:
         type: string
+        required: true
+      KSU:
+        type: boolean
         required: true
       SUSFS:
         type: boolean
@@ -24,6 +27,14 @@ on:
       
   workflow_dispatch:
     inputs:
+      BUILD_TARGET:
+        description: "Build target"
+        default: xaga
+        type: choice
+        options:
+          - xaga
+          - generic
+
       KSU:
         description: "Include KernelSU?"
         default: false
@@ -74,7 +85,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq \
-            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential python3-requests libfaketime
+            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential python3-requests libfaketime lz4
         
       - name: Compute ccache key
         run: |
@@ -85,14 +96,15 @@ jobs:
         uses: actions/cache/restore@v5.0.3
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
-            ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-
-            ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-
+            ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-
 
       - name: Build
         id: build
         env:
+          BUILD_TARGET: ${{ inputs.BUILD_TARGET }}
           KSU: ${{ inputs.KSU }}
           SUSFS: ${{ inputs.SUSFS }}
           LXC: ${{ inputs.LXC }}
@@ -122,7 +134,7 @@ jobs:
         uses: actions/cache/save@v5.0.3
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.KSU }}-${{ inputs.SUSFS }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
 
       - name: Upload GitHub metadata artifact
         uses: actions/upload-artifact@v6
@@ -142,4 +154,4 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}-boot
-          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot.img
+          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot*.img

@@ -6,6 +6,14 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
+      build_target:
+        description: "Build target"
+        type: choice
+        required: true
+        default: xaga
+        options:
+          - xaga
+          - generic
       create_release:
         description: "Create release?"
         type: boolean
@@ -13,20 +21,39 @@ on:
         default: true
 
 jobs:
+  prepare:
+    name: Load Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.json }}
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Read matrix file
+        id: matrix
+        env:
+          build_target: ${{ github.event.inputs.build_target }}
+        run: |
+          matrix="$GITHUB_WORKSPACE/.github/matrix/${build_target}.json"
+          if [[ ! -f "$matrix" ]]; then
+            echo "::error::Missing matrix file: $matrix"
+            exit 1
+          fi
+          echo "json=$(jq -c . "$matrix")" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
     strategy:
-      matrix:
-        variant:
-          - { name: "VNL", KSU: false, SUSFS: false, LXC: false }
-          - { name: "VNL-LXC", KSU: false, SUSFS: false, LXC: true }
-          - { name: "KSU", KSU: true, SUSFS: false, LXC: false }
-          - { name: "KSU-SUSFS", KSU: true, SUSFS: true, LXC: false }
-          - { name: "KSU-LXC", KSU: true, SUSFS: false, LXC: true }
-          - { name: "KSU-SUSFS-LXC", KSU: true, SUSFS: true, LXC: true }
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     name: Build ${{ matrix.variant.name }} variant
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
+      BUILD_TARGET: ${{ github.event.inputs.build_target }}
       KSU: ${{ matrix.variant.KSU }}
       SUSFS: ${{ matrix.variant.SUSFS }}
       LXC: ${{ matrix.variant.LXC }}
@@ -87,7 +114,7 @@ jobs:
         uses: softprops/action-gh-release@v2.5.0
         with:
           repository: ${{ env.RELEASE_REPO }}
-          name: "${{ env.KERNEL_NAME }} Kernel ${{ env.RELEASE_TAG }}"
+          name: "${{ env.KERNEL_NAME }} Kernel ${{ github.event.inputs.build_target }} ${{ env.RELEASE_TAG }}"
           tag_name: ${{ env.RELEASE_TAG }}
           token: ${{ secrets.GH_TOKEN }}
           body: |
@@ -112,7 +139,7 @@ jobs:
             | **-VNL** | No KernelSU |
             | **-KSU** | KernelSU |
             | **-SUSFS** | SUSFS Support |
-            | **-LXC** | LXC Support |
+            | **-LXC** | LXC Support for xaga builds |
 
             > [!IMPORTANT]
             > For installation instructions and issue reporting guidelines, please refer to the README.md
@@ -141,6 +168,7 @@ jobs:
               cat <<EOF
           📦 *$(escape_md_v2 "$KERNEL_NAME Release Build Completed!")*
 
+          *Target:* $(escape_md_v2 "${{ github.event.inputs.build_target }}")
           [GitHub Release]($(escape_md_v2 "https://github.com/${{ env.RELEASE_REPO }}/releases/${{ env.RELEASE_TAG }}"))
           EOF
           )

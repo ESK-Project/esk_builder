@@ -20,7 +20,7 @@ setup_ccache() {
 }
 
 setup_ld_preload() {
-    export LIBFAKETIME=$(find /usr/lib* /lib* -name libfaketimeMT.so.1 -print -quit 2>/dev/null || true)
+    export LIBFAKETIME=$(find /usr/lib* /lib* -name libfaketimeMT.so.1 -print -quit 2> /dev/null || true)
     export LIBFAKESTAT
 
     [[ -f "$LIBFAKESTAT" ]] && return 0
@@ -57,15 +57,15 @@ init_build() {
     )
 
     # Environment default setting
+    TG_NOTIFY="$(norm_default "${TG_NOTIFY-}" "false")"
+    RESET_SOURCES="$(norm_default "${RESET_SOURCES-}" "false")"
+
     if is_ci; then
         TG_NOTIFY="$(norm_default "${TG_NOTIFY-}" "true")"
         RESET_SOURCES="$(norm_default "${RESET_SOURCES-}" "true")"
-    else
-        TG_NOTIFY="$(norm_default "${TG_NOTIFY-}" "false")"
-        RESET_SOURCES="$(norm_default "${RESET_SOURCES-}" "false")"
     fi
 
-    info "Mode: $(is_ci && echo CI || echo local)"
+    info "Building in $(is_ci && echo CI || echo local)"
 
     # Set timezone
     export TZ="$TIMEZONE"
@@ -107,6 +107,10 @@ validate_env() {
     if is_true "$SUSFS" && ! is_true "$KSU"; then
         error "Cannot use SUSFS without KernelSU"
     fi
+
+    if is_true "$LXC" && [[ $BUILD_TARGET != "xaga" ]]; then
+        error "LXC is not supported for $BUILD_TARGET target"
+    fi
 }
 
 send_start_msg() {
@@ -119,6 +123,7 @@ send_start_msg() {
 
 🏷️ \#$(escape_md_v2 "$BUILD_TAG")
 $(tg_run_line)
+*Target:* $(escape_md_v2 "$BUILD_TARGET")
 *Defconfig:* $(escape_md_v2 "$KERNEL_DEFCONFIG")
 *Features:* KSU $(parse_bool "$KSU"), SuSFS $(parse_bool "$SUSFS"), LXC $(parse_bool "$LXC"), Stock config $(parse_bool "$STOCK_CONFIG")
 EOF
@@ -129,22 +134,12 @@ EOF
 prepare_dirs() {
     step 5 "Prepare directories"
 
-    local out_dir_list=(
-        "$OUT_DIR" "$BOOT_IMAGE" "$ANYKERNEL"
-    )
-    local src_dir_list=(
-        "$KERNEL" "$BUILD_TOOLS"
-        "$MKBOOTIMG" "$SUSFS_DIR"
-    )
-
-    info "Resetting output directories: $(printf '%s ' "${out_dir_list[@]##*/}")"
-    for dir in "${out_dir_list[@]}"; do
+    for dir in "$OUT_DIR" "$BOOT_IMAGE" "$ANYKERNEL"; do
         reset_dir "$dir"
     done
 
     if is_true "$RESET_SOURCES"; then
-        info "Resetting source directories: $(printf '%s ' "${src_dir_list[@]##*/}")"
-        for dir in "${src_dir_list[@]}"; do
+        for dir in "$KERNEL" "$BUILD_TOOLS" "$MKBOOTIMG" "$SUSFS_DIR"; do
             reset_dir "$dir"
         done
     fi
@@ -315,6 +310,22 @@ package_anykernel() {
 }
 
 package_bootimg() {
+    make_boot() {
+        "$MKBOOTIMG/mkbootimg.py" \
+            --header_version "4" \
+            --kernel "$1" \
+            --output "$2" \
+            --ramdisk out/ramdisk \
+            --os_version "12.0.0" \
+            --os_patch_level "2099-12"
+        "$BUILD_TOOLS/linux-x86/bin/avbtool" add_hash_footer \
+            --partition_name boot \
+            --partition_size "$partition_size" \
+            --image "$2" \
+            --algorithm SHA256_RSA4096 \
+            --key "$BOOT_SIGN_KEY"
+    }
+
     step 11 "Package boot image"
 
     local package_name="$1"
@@ -322,29 +333,32 @@ package_bootimg() {
 
     pushd "$BOOT_IMAGE" > /dev/null
 
-    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" ./Image
-    gzip -n -f -9 Image
-
     curl -fsSLo gki-kernel.zip "$GKI_URL"
     unzip gki-kernel.zip > /dev/null 2>&1 && rm gki-kernel.zip
 
     "$MKBOOTIMG/unpack_bootimg.py" --boot_img="boot-5.10.img"
-    "$MKBOOTIMG/mkbootimg.py" \
-        --header_version "4" \
-        --kernel Image.gz \
-        --output boot.img \
-        --ramdisk out/ramdisk \
-        --os_version "12.0.0" \
-        --os_patch_level "2099-12"
-    "$BUILD_TOOLS/linux-x86/bin/avbtool" add_hash_footer \
-        --partition_name boot \
-        --partition_size "$partition_size" \
-        --image boot.img \
-        --algorithm SHA256_RSA4096 \
-        --key "$BOOT_SIGN_KEY"
+    cp -p "$KERNEL_OUT/arch/arm64/boot/Image" ./Image
 
+    if [[ $BOOT_MODE == "multi" ]]; then
+        gzip -n -k -f -9 Image
+        lz4 -f -l --favor-decSpeed Image Image.lz4
+
+        make_boot "Image" "boot-raw.img"
+        make_boot "Image.gz" "boot-gz.img"
+        make_boot "Image.lz4" "boot-lz4.img"
+
+        cp "$BOOT_IMAGE/boot-raw.img" "$OUT_DIR/$package_name-boot-raw.img"
+        cp "$BOOT_IMAGE/boot-gz.img" "$OUT_DIR/$package_name-boot-gz.img"
+        cp "$BOOT_IMAGE/boot-lz4.img" "$OUT_DIR/$package_name-boot-lz4.img"
+        
+        popd > /dev/null
+        return
+    fi
+
+    gzip -n -f -9 Image
+    make_boot "Image.gz" "boot.img"
     cp "$BOOT_IMAGE/boot.img" "$OUT_DIR/$package_name-boot.img"
-
+    
     popd > /dev/null
 }
 
@@ -356,7 +370,7 @@ write_metadata() {
 
     local package_name="$1"
     local anykernel_zip="$package_name-AnyKernel3.zip"
-    local boot_image="$package_name-boot.img"
+    local boot_image="$package_name-boot*.img"
 
     python3 "$META_PY" \
         "$META_FILE" \
@@ -381,6 +395,7 @@ notify_success() {
 
 🏷️ \#$(escape_md_v2 "$BUILD_TAG") \#$(escape_md_v2 "$additional_tag")
 $(tg_run_line)
+*Target:* $(escape_md_v2 "$BUILD_TARGET")
 *Time:* $(escape_md_v2 "${minutes}m ${seconds}s")
 *Kernel:* $(escape_md_v2 "$KERNEL_VERSION")
 *Compiler:* $(escape_md_v2 "$COMPILER_STRING")
@@ -401,7 +416,7 @@ telegram_notify() {
 
     # Boot image
     pushd "$OUT_DIR" > /dev/null
-    zip -9q -T "$package_name-boot.zip" "$package_name-boot.img"
+    zip -9q -T "$package_name-boot.zip" "$package_name"-boot*.img
     popd > /dev/null
 
     notify_success "$OUT_DIR/$package_name-boot.zip" "$build_time" "boot_image"

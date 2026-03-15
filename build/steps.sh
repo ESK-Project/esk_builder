@@ -369,14 +369,12 @@ write_metadata() {
     META_FILE="$WORKSPACE/github.json"
 
     local package_name="$1"
-    local anykernel_zip="$package_name-AnyKernel3.zip"
-    local boot_image="$package_name-boot*.img"
 
     python3 "$META_PY" \
         "$META_FILE" \
         "$KERNEL_VERSION" "$KERNEL_NAME" "$COMPILER_STRING" \
         "$package_name" "$VARIANT" "$KERNEL_NAME" "$OUT_DIR" \
-        "$RELEASE_REPO" "$RELEASE_BRANCH" "$anykernel_zip" "$boot_image"
+        "$RELEASE_REPO" "$RELEASE_BRANCH"
 }
 
 notify_success() {

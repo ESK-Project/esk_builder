@@ -32,8 +32,19 @@ def main() -> None:
 
     try:
         raw: str = subprocess.check_output(
-            ["gh", "release", "list", "--repo", repo, "--limit", "100", "--json", "tagName"],
-            text=True, stderr=subprocess.STDOUT
+            [
+                "gh",
+                "release",
+                "list",
+                "--repo",
+                repo,
+                "--limit",
+                "100",
+                "--json",
+                "tagName",
+            ],
+            text=True,
+            stderr=subprocess.STDOUT,
         )
     except subprocess.CalledProcessError as e:
         die(f"gh failed: {e.output.strip()}")

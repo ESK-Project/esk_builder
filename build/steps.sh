@@ -350,7 +350,7 @@ package_bootimg() {
         cp "$BOOT_IMAGE/boot-raw.img" "$OUT_DIR/$package_name-boot-raw.img"
         cp "$BOOT_IMAGE/boot-gz.img" "$OUT_DIR/$package_name-boot-gz.img"
         cp "$BOOT_IMAGE/boot-lz4.img" "$OUT_DIR/$package_name-boot-lz4.img"
-        
+
         popd > /dev/null
         return
     fi
@@ -358,7 +358,7 @@ package_bootimg() {
     gzip -n -f -9 Image
     make_boot "Image.gz" "boot.img"
     cp "$BOOT_IMAGE/boot.img" "$OUT_DIR/$package_name-boot.img"
-    
+
     popd > /dev/null
 }
 

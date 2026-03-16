@@ -41,7 +41,9 @@ def tg_send_message(text: str):
         "disable_web_page_preview": "true",
         "text": text,
     }
-    resp: requests.Response = requests.post(url=tg_api_url("sendMessage"), json=payload, timeout=30)
+    resp: requests.Response = requests.post(
+        url=tg_api_url("sendMessage"), json=payload, timeout=30
+    )
     resp.raise_for_status()
     j = resp.json()
     if not j.get("ok"):
@@ -69,6 +71,7 @@ def tg_send_document(file_path: Path, caption: str) -> None:
     j: dict[str, Any] = resp.json()
     if not j.get("ok"):
         die(f"sendDocument failed: {j.get('description', 'Unknown error')}")
+
 
 def usage() -> NoReturn:
     print(

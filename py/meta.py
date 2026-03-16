@@ -56,5 +56,6 @@ def main() -> None:
     with open(out_file, "w") as f:
         f.write(text)
 
+
 if __name__ == "__main__":
     main()

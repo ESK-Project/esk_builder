@@ -50,7 +50,7 @@ LIBFAKESTAT_URL="https://github.com/cctv18/libfakestat/releases/download/libfake
 
 case "$BUILD_TARGET" in
     xaga)
-        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@16.2"
+        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@16.2-rebase"
         RELEASE_REPO="ESK-Project/esk-releases"
         BOOT_MODE="single"
         ;;

@@ -40,7 +40,7 @@ vendor_boot() {
 
     mkdir -p "$mods_dir" "$depmod_dir"
 
-    # merge vendor_boot and recovery modules load together
+    # vendor_boot first, then recovery extras
     mapfile -t modules < <(
         cat "$MODULES_LOAD_VENDOR_BOOT" "$MODULES_LOAD_RECOVERY" | sort -u
     )
@@ -92,12 +92,15 @@ vendor_dlkm() {
     depmod_dir="$depmod_root/lib/modules/0.0"
 
     mkdir -p "$mods_dir" "$depmod_dir"
-    
-    mapfile -t modules < "$MODULES_LOAD_DLKM"
-    for mod in "${modules[@]}"; do
-        cp -p "$MODULES_STAGE/$mod" "$mods_dir/"
-        cp -p "$MODULES_STAGE/$mod" "$depmod_dir/"
+
+    # vendor_dlkm gets everything
+    shopt -s nullglob
+    for file in "$MODULES_STAGE"/*.ko; do
+        cp -p "$file" "$mods_dir/"
+        cp -p "$file" "$depmod_dir/"
     done
+    shopt -u nullglob
+
     cp -p "$MODULES_LOAD_DLKM" "$mods_dir/modules.load"
 
     # rebuild module metadata

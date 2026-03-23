@@ -16,10 +16,8 @@ info() { printf '%b\n' "${BLUE}[$(date '+%F %T')] [INFO]${NC} $*"; }
 success() { printf '%b\n' "${GREEN}[$(date '+%F %T')] [SUCCESS]${NC} $*"; }
 warn() { printf '%b\n' "${YELLOW}[$(date '+%F %T')] [WARN]${NC} $*"; }
 step() {
-    local index="$1"
-    local message="$2"
-    local total=13
-    printf '%b\n' "${BOLD}[$(date '+%F %T')] [STEP ${index}/${total}] ${message}${NC}"
+    local message="$1"
+    printf '%b\n' "${BOLD}[$(date '+%F %T')] [STEP ${STEP}] ${message}${NC}"
 }
 
 # Escape text for MarkdownV2
@@ -74,21 +72,30 @@ reset_dir() {
     mkdir -p -- "$path"
 }
 
+# Remove broken Kbuild outputs to avoid breaking incremental builds.
+prune_bad_artifacts() {
+    local build_dir="$1"
+
+    [[ -d $build_dir ]] || return 0
+
+    find "$build_dir" -type f -size 0 \
+        \( -name '*.o' -o -name '*.a' -o -name '*.ko' -o -name '*.symversions' \) \
+        -print -delete
+}
+
 # Shallow clone repository into a destination
 git_clone() {
     local source="$1"
     local dest="$2"
     local host repo branch url
     IFS=':@' read -r host repo branch <<< "$source"
-    url="https://${host}/${repo}"
 
     if [[ -d "$dest/.git" ]]; then
-        git -C "$dest" clean -fdx -q
-        git -C "$dest" fetch -q --depth=1 --no-tags origin "$branch"
-        git -C "$dest" reset -q --hard FETCH_HEAD
+        git -C "$dest" pull -q --ff-only origin "$branch"
         return 0
     fi
 
+    url="https://${host}/${repo}"
     git clone -q --depth=1 --single-branch --no-tags \
         "$url" -b "${branch}" "${dest}"
 }

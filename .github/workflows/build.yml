@@ -9,9 +9,6 @@ on:
       BUILD_TARGET:
         type: string
         required: true
-      BRANCH_OVERRIDE:
-        type: string
-        required: false
       KSU:
         type: boolean
         required: true
@@ -37,6 +34,10 @@ on:
         options:
           - xaga
           - generic
+
+      BRANCH_OVERRIDE:
+        description: "Kernel branch overriding"
+        type: string
 
       KSU:
         description: "Include KernelSU?"

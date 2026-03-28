@@ -9,6 +9,9 @@ on:
       BUILD_TARGET:
         type: string
         required: true
+      BRANCH_OVERRIDE:
+        type: string
+        required: false
       KSU:
         type: boolean
         required: true
@@ -24,7 +27,7 @@ on:
       TG_NOTIFY:
         type: boolean
         required: true
-      
+
   workflow_dispatch:
     inputs:
       BUILD_TARGET:
@@ -69,7 +72,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     env:
       TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
       TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -86,7 +89,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -qq \
             bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential python3-requests libfaketime lz4
-        
+
       - name: Compute ccache key
         run: |
           echo "clang_hash=$(clang --version | sha256sum | cut -c1-10 || echo none)" >> "$GITHUB_ENV"
@@ -105,6 +108,7 @@ jobs:
         id: build
         env:
           BUILD_TARGET: ${{ inputs.BUILD_TARGET }}
+          BRANCH_OVERRIDE: ${{ inputs.BRANCH_OVERRIDE }}
           KSU: ${{ inputs.KSU }}
           SUSFS: ${{ inputs.SUSFS }}
           LXC: ${{ inputs.LXC }}
@@ -113,7 +117,7 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh
-          
+
           file="$GITHUB_WORKSPACE/github.json"
           [[ -f "$file" ]] || { echo "::error::github.json missing"; exit 1; }
           python3 - "$file" "$GITHUB_OUTPUT" <<'PY'

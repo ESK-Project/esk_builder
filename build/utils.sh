@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034
 
 ################################################################################
 # Utility functions
@@ -22,7 +23,7 @@ step() {
 
 # Escape text for MarkdownV2
 escape_md_v2() {
-    python3 - "$*" << 'PY'
+    python3 - "$*" <<'PY'
 import re
 import sys
 
@@ -36,9 +37,9 @@ PY
 norm_bool() {
     local value=$1
     case "${value,,}" in
-        1 | y | yes | t | true | on) echo "true" ;;
-        0 | n | no | f | false | off) echo "false" ;;
-        *) echo "false" ;;
+    1 | y | yes | t | true | on) echo "true" ;;
+    0 | n | no | f | false | off) echo "false" ;;
+    *) echo "false" ;;
     esac
 }
 
@@ -72,7 +73,7 @@ reset_dir() {
     mkdir -p -- "$path"
 }
 
-# Remove broken Kbuild outputs to avoid breaking incremental builds.
+# Remove broken Kbuild outputs to avoid breaking incremental builds
 prune_bad_artifacts() {
     local build_dir="$1"
 
@@ -88,7 +89,7 @@ git_clone() {
     local source="$1"
     local dest="$2"
     local host repo branch url
-    IFS=':@' read -r host repo branch <<< "$source"
+    IFS=':@' read -r host repo branch <<<"$source"
 
     if [[ -d "$dest/.git" ]]; then
         git -C "$dest" pull -q --ff-only origin "$branch"
@@ -116,44 +117,18 @@ config() {
 clang_lto() {
     config --enable CONFIG_LTO_CLANG
     case "$1" in
-        thin)
-            config --enable CONFIG_LTO_CLANG_THIN
-            config --disable CONFIG_LTO_CLANG_FULL
-            ;;
-        full)
-            config --enable CONFIG_LTO_CLANG_FULL
-            config --disable CONFIG_LTO_CLANG_THIN
-            ;;
-        *)
-            warn "Unknown LTO mode, using thin"
-            config --enable CONFIG_LTO_CLANG_THIN
-            config --disable CONFIG_LTO_CLANG_FULL
-            ;;
+    thin)
+        config --enable CONFIG_LTO_CLANG_THIN
+        config --disable CONFIG_LTO_CLANG_FULL
+        ;;
+    full)
+        config --enable CONFIG_LTO_CLANG_FULL
+        config --disable CONFIG_LTO_CLANG_THIN
+        ;;
+    *)
+        warn "Unknown LTO mode, using thin"
+        config --enable CONFIG_LTO_CLANG_THIN
+        config --disable CONFIG_LTO_CLANG_FULL
+        ;;
     esac
-}
-
-################################################################################
-# Error handling
-################################################################################
-
-error() {
-    trap - ERR
-    printf '%b\n' "${RED}[$(date '+%F %T')] [ERROR]${NC} $*" >&2
-
-    is_true "${TG_NOTIFY:-false}" || exit 1
-
-    local msg
-    msg=$(
-        cat << EOF
-❌ *$(escape_md_v2 "$KERNEL_NAME Kernel CI")*
-
-🏷️ *Tags*: \#$(escape_md_v2 "$BUILD_TAG") \#error
-$(tg_run_line)
-
-$(escape_md_v2 "ERROR: $*")
-EOF
-    )
-
-    telegram_upload_file "$LOGFILE" "$msg"
-    exit 1
 }

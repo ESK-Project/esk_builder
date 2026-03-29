@@ -1,9 +1,16 @@
 # shellcheck shell=bash
-# shellcheck disable=SC2164,SC2153
+# shellcheck disable=SC2164,SC2153,SC2034
 
 ################################################################################
-# Build packaging
+# Packaging
 ################################################################################
+
+prepare_package_name() {
+    VARIANT="$(is_true "$KSU" && echo "KSU" || echo "VNL")"
+    is_true "$SUSFS" && VARIANT+="-SUSFS"
+    is_true "$LXC" && VARIANT+="-LXC"
+    PACKAGE_NAME="$KERNEL_NAME-$KERNEL_VERSION-$VARIANT"
+}
 
 package_anykernel() {
     step "Package AnyKernel3"
@@ -11,18 +18,18 @@ package_anykernel() {
     local package_name="$1"
     local package_path="$OUT_DIR/$package_name-AnyKernel3.zip"
 
-    pushd "$AK3" > /dev/null
+    pushd "$AK3" >/dev/null
     cp -p "$KERNEL_OUT/arch/arm64/boot/Image" .
 
     info "Compressing kernel image using zstd..."
-    zstd -19 -T0 --no-progress -o Image.zst Image > /dev/null 2>&1
+    zstd -19 -T0 --no-progress -o Image.zst Image >/dev/null 2>&1
     rm -f ./Image
-    sha256sum Image.zst > Image.zst.sha256
+    sha256sum Image.zst >Image.zst.sha256
 
     rm -f "$package_path"
     zip -r9q -T -X -y -n .zst "$package_path" . -x '.git/*' '*.log'
 
-    popd > /dev/null
+    popd >/dev/null
     success "AnyKernel3 packaged"
 }
 
@@ -48,10 +55,10 @@ package_bootimg() {
     local package_name="$1"
     local partition_size=$((64 * 1024 * 1024))
 
-    pushd "$BOOT_IMAGE" > /dev/null
+    pushd "$BOOT_IMAGE" >/dev/null
 
     curl -fsSLo gki-kernel.zip "$GKI_URL"
-    unzip gki-kernel.zip > /dev/null 2>&1 && rm gki-kernel.zip
+    unzip gki-kernel.zip >/dev/null 2>&1 && rm gki-kernel.zip
 
     "$MKBOOTIMG/unpack_bootimg.py" --boot_img="boot-5.10.img"
     cp -p "$KERNEL_OUT/arch/arm64/boot/Image" ./Image
@@ -68,7 +75,7 @@ package_bootimg() {
         cp "$BOOT_IMAGE/boot-gz.img" "$OUT_DIR/$package_name-boot-gz.img"
         cp "$BOOT_IMAGE/boot-lz4.img" "$OUT_DIR/$package_name-boot-lz4.img"
 
-        popd > /dev/null
+        popd >/dev/null
         return
     fi
 
@@ -76,7 +83,7 @@ package_bootimg() {
     make_boot "Image.gz" "boot.img"
     cp "$BOOT_IMAGE/boot.img" "$OUT_DIR/$package_name-boot.img"
 
-    popd > /dev/null
+    popd >/dev/null
 }
 
 write_metadata() {
@@ -105,7 +112,7 @@ notify_success() {
 
     local result_caption
     result_caption=$(
-        cat << EOF
+        cat <<EOF
 ✅ *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
 🏷️ \#$(escape_md_v2 "$BUILD_TAG") \#$(escape_md_v2 "$additional_tag")
@@ -130,9 +137,9 @@ telegram_notify() {
     notify_success "$ak3_package" "$build_time" "anykernel3"
 
     # Boot image
-    pushd "$OUT_DIR" > /dev/null
+    pushd "$OUT_DIR" >/dev/null
     zip -9q -T "$package_name-boot.zip" "$package_name"-boot*.img
-    popd > /dev/null
+    popd >/dev/null
 
     notify_success "$OUT_DIR/$package_name-boot.zip" "$build_time" "boot_image"
     rm -f "$OUT_DIR/$package_name-boot.zip"

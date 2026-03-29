@@ -109,7 +109,7 @@ vendor_dlkm() {
 
     cp -p "$depmod_dir"/modules.{alias,dep,softdep} "$mods_dir/"
 
-    cat > "$DLKM_FS_CONFIG" <<'EOF'
+    cat > "$DLKM_FS_CONFIG" << 'EOF'
 / 0 0 0755
 /lost+found 0 0 0755
 vendor_dlkm 0 0 0755
@@ -122,7 +122,7 @@ vendor_dlkm/lib 0 0 0755
 vendor_dlkm/lib/modules 0 0 0755
 EOF
 
-    cat > "$DLKM_FILE_CONTEXTS" <<'EOF'
+    cat > "$DLKM_FILE_CONTEXTS" << 'EOF'
 / u:object_r:vendor_file:s0
 /vendor_dlkm/etc(/.*)? u:object_r:vendor_configs_file:s0
 /vendor_dlkm(/.*)? u:object_r:vendor_file:s0

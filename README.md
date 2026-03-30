@@ -11,8 +11,8 @@ pulls sources and tools, applies optional patches, then builds and packages the 
 - build/: setup, patching, and compile kernel
 - ci/: packaging, metadata, modules, and telegram helpers
 - py/: small python helpers
-- modules/: module lists used during packaging
-- kernel_patches/: local patch files
+- modules/: modules.load for xaga modules packaging
+- kernel_patches/: kernel patches
 - .github/workflows/: ci and release workflows
 
 ## requirements

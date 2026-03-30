@@ -51,22 +51,22 @@ GKI_URL="https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-202
 LIBFAKESTAT_URL="https://github.com/cctv18/libfakestat/releases/download/libfakestat-build-251027213612/libfakestat.tar.gz"
 
 case "$BUILD_TARGET" in
-    xaga)
-        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
-        AK3_REPO="github.com:ESK-Project/AnyKernel3@xaga"
-        RELEASE_REPO="ESK-Project/esk-releases"
-        BOOT_MODE="single"
-        ;;
-    generic)
-        KERNEL_REPO="github.com:ESK-Project/android12-5.10-gki@${BRANCH_OVERRIDE:-main}"
-        AK3_REPO="github.com:ESK-Project/AnyKernel3@generic"
-        RELEASE_REPO="ESK-Project/gki-releases"
-        BOOT_MODE="multi"
-        ;;
-    *)
-        echo "Unknown build target: $BUILD_TARGET" >&2
-        exit 1
-        ;;
+xaga)
+    KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
+    AK3_REPO="github.com:ESK-Project/AnyKernel3@xaga"
+    RELEASE_REPO="ESK-Project/esk-releases"
+    BOOT_MODE="single"
+    ;;
+generic)
+    KERNEL_REPO="github.com:ESK-Project/android12-5.10-gki@${BRANCH_OVERRIDE:-main}"
+    AK3_REPO="github.com:ESK-Project/AnyKernel3@generic"
+    RELEASE_REPO="ESK-Project/gki-releases"
+    BOOT_MODE="multi"
+    ;;
+*)
+    echo "Unknown build target: $BUILD_TARGET" >&2
+    exit 1
+    ;;
 esac
 
 ################################################################################
@@ -83,6 +83,7 @@ SUSFS_DIR="$WORKSPACE/susfs"
 LIBFAKESTAT_DIR="$WORKSPACE/libfakestat"
 
 # Output stuff
+KERNEL_OUT="$WORKSPACE/work"
 OUT_DIR="$WORKSPACE/out"
 BOOT_IMAGE="$WORKSPACE/boot_image"
 LOGFILE="$WORKSPACE/build.log"
@@ -91,7 +92,6 @@ SIGN_KEY="$WORKSPACE/key"
 # Helper paths
 CLANG_BIN="$CLANG/bin"
 BOOT_SIGN_KEY="$SIGN_KEY/boot_sign_key.pem"
-KERNEL_OUT="$KERNEL/out"
 LIBFAKESTAT="$LIBFAKESTAT_DIR/libfakestat.so"
 
 # Module paths

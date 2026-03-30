@@ -66,10 +66,9 @@ notes:
 
 ## output
 
-all files go to out/.
-
 | file                          | description             |
 | ----------------------------- | ----------------------- |
+| work/                         | kernel out              |
 | out/\<package>-AnyKernel3.zip | flashable package       |
 | out/\<package>-boot.img       | xaga boot image         |
 | out/\<package>-boot-raw.img   | generic raw boot image  |

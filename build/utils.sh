@@ -92,7 +92,9 @@ git_clone() {
     IFS=':@' read -r host repo branch <<<"$source"
 
     if [[ -d "$dest/.git" ]]; then
-        git -C "$dest" pull -q --ff-only origin "$branch"
+        git -C "$dest" clean -fdx -q
+        git -C "$dest" fetch -q --depth=1 --no-tags origin "$branch"
+        git -C "$dest" reset -q --hard FETCH_HEAD
         return 0
     fi
 

@@ -21,7 +21,7 @@ setup_ccache() {
 
 setup_ld_preload() {
     export LIBFAKETIME
-    LIBFAKETIME=$(find /usr/lib* /lib* -name libfaketimeMT.so.1 -print -quit 2>/dev/null || true)
+    LIBFAKETIME=$(find /usr/lib* /lib* -name libfaketimeMT.so.1 -print -quit 2> /dev/null || true)
     export LIBFAKESTAT
 
     [[ -f "$LIBFAKESTAT" ]] && return 0
@@ -120,10 +120,10 @@ setup_toolchain() {
     local auth_header=()
     [[ -n ${GH_TOKEN:-} ]] && auth_header=(-H "Authorization: Bearer $GH_TOKEN")
     clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
-        "${auth_header[@]}" |
-        grep "browser_download_url" |
-        grep ".tar.gz" |
-        cut -d '"' -f 4)
+        "${auth_header[@]}" \
+        | grep "browser_download_url" \
+        | grep ".tar.gz" \
+        | cut -d '"' -f 4)
 
     mkdir -p "$CLANG"
 

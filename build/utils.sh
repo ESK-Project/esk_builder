@@ -23,7 +23,7 @@ step() {
 
 # Escape text for MarkdownV2
 escape_md_v2() {
-    python3 - "$*" <<'PY'
+    python3 - "$*" << 'PY'
 import re
 import sys
 
@@ -37,9 +37,9 @@ PY
 norm_bool() {
     local value=$1
     case "${value,,}" in
-    1 | y | yes | t | true | on) echo "true" ;;
-    0 | n | no | f | false | off) echo "false" ;;
-    *) echo "false" ;;
+        1 | y | yes | t | true | on) echo "true" ;;
+        0 | n | no | f | false | off) echo "false" ;;
+        *) echo "false" ;;
     esac
 }
 
@@ -89,7 +89,7 @@ git_clone() {
     local source="$1"
     local dest="$2"
     local host repo branch url
-    IFS=':@' read -r host repo branch <<<"$source"
+    IFS=':@' read -r host repo branch <<< "$source"
 
     if [[ -d "$dest/.git" ]]; then
         git -C "$dest" clean -fdx -q
@@ -119,18 +119,18 @@ config() {
 clang_lto() {
     config --enable CONFIG_LTO_CLANG
     case "$1" in
-    thin)
-        config --enable CONFIG_LTO_CLANG_THIN
-        config --disable CONFIG_LTO_CLANG_FULL
-        ;;
-    full)
-        config --enable CONFIG_LTO_CLANG_FULL
-        config --disable CONFIG_LTO_CLANG_THIN
-        ;;
-    *)
-        warn "Unknown LTO mode, using thin"
-        config --enable CONFIG_LTO_CLANG_THIN
-        config --disable CONFIG_LTO_CLANG_FULL
-        ;;
+        thin)
+            config --enable CONFIG_LTO_CLANG_THIN
+            config --disable CONFIG_LTO_CLANG_FULL
+            ;;
+        full)
+            config --enable CONFIG_LTO_CLANG_FULL
+            config --disable CONFIG_LTO_CLANG_THIN
+            ;;
+        *)
+            warn "Unknown LTO mode, using thin"
+            config --enable CONFIG_LTO_CLANG_THIN
+            config --disable CONFIG_LTO_CLANG_FULL
+            ;;
     esac
 }

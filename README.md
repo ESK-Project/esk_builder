@@ -43,20 +43,20 @@ BUILD_TARGET=xaga KSU=true SUSFS=true LXC=false ./build.sh
 
 ## inputs
 
-| env var         | description                                    |
-| --------------- | ---------------------------------------------- |
-| BUILD_TARGET    | build target, either xaga or generic           |
-| KSU             | enable kernelsu                                |
-| SUSFS           | enable susfs                                   |
-| LXC             | apply the lxc patch, xaga only                 |
-| STOCK_CONFIG    | apply the stock config patch                   |
-| BRANCH_OVERRIDE | use a different kernel branch                  |
-| JOBS            | set make job count                             |
-| RESET_SOURCES   | re-clone sources and tools before building     |
-| TG_NOTIFY       | send telegram updates                          |
-| GH_TOKEN        | optional, helps when fetching clang            |
-| TG_BOT_TOKEN    | telegram bot token, needed when TG_NOTIFY=true |
-| TG_CHAT_ID      | telegram chat id, needed when TG_NOTIFY=true   |
+| env var         | description                                    | type |
+| --------------- | ---------------------------------------------- | ---- |
+| BUILD_TARGET    | build target, either xaga or generic           | str  |
+| KSU             | enable kernelsu                                | bool |
+| SUSFS           | enable susfs                                   | bool |
+| LXC             | apply the lxc patch, xaga only                 | bool |
+| STOCK_CONFIG    | apply the stock config patch                   | bool |
+| BRANCH_OVERRIDE | use a different kernel branch                  | str  |
+| JOBS            | set make job count                             | int  |
+| RESET_SOURCES   | re-clone sources and tools before building     | bool |
+| TG_NOTIFY       | send telegram updates                          | bool |
+| GH_TOKEN        | optional, helps when fetching clang            | str  |
+| TG_BOT_TOKEN    | telegram bot token, needed when TG_NOTIFY=true | str  |
+| TG_CHAT_ID      | telegram chat id, needed when TG_NOTIFY=true   | str  |
 
 notes:
 

@@ -1,4 +1,4 @@
-# esk_builder
+# esk builder
 
 builds esk kernel packages for xaga and generic.
 

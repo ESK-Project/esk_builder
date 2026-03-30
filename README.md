@@ -26,7 +26,7 @@ sudo apt install bc bison ccache curl flex git tar wget aria2 jq zip zstd upx bu
 fedora:
 
 ```bash
-sudo dnf install bc bison ccache curl flex git tar wget aria2 jq zip zstd upx make gcc gcc-c++ python3-requests libfaketime lz4
+sudo dnf install bc bison ccache curl flex git tar wget aria2 jq zip zstd upx make python3-requests libfaketime lz4
 ```
 
 ## run

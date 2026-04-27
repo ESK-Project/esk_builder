@@ -70,9 +70,7 @@ main() {
     count prepare_build
     count build_kernel
     if [[ "$BUILD_TARGET" == "xaga" ]]; then
-        count stage
-        count vendor_dlkm
-        count vendor_boot
+        count build_module
     fi
 
     prepare_package_name

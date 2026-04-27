@@ -95,12 +95,14 @@ BOOT_SIGN_KEY="$SIGN_KEY/boot_sign_key.pem"
 LIBFAKESTAT="$LIBFAKESTAT_DIR/libfakestat.so"
 
 # Module paths
-MODULES_STAGE="$WORKSPACE/staged"
-MODULES_LOAD="$WORKSPACE/modules"
-MODULES_LOAD_DLKM="$MODULES_LOAD/modules.load"
-MODULES_LOAD_VENDOR_BOOT="$MODULES_LOAD/modules.load.vendor_boot"
-MODULES_LOAD_RECOVERY="$MODULES_LOAD/modules.load.recovery"
-VENDOR_DLKM_PACKAGE="$OUT_DIR/vendor_dlkm.tar.xz"
-VENDOR_BOOT_PACKAGE="$OUT_DIR/vendor_boot.tar.xz"
+MOD="$WORKSPACE/modules"
+
+MOD_FLAT="$MOD/flatten"
+MOD_STAGE="$MOD/staging"
+
+MOD_LOAD="$MOD/load"
+
+MODULE_PACKAGE="$OUT_DIR/module.tar.xz"
+
 DLKM_FS_CONFIG="$AK3/config/vendor_dlkm_fs_config"
 DLKM_FILE_CONTEXTS="$AK3/config/vendor_dlkm_file_contexts"

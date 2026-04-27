@@ -75,7 +75,7 @@ init_build() {
 prepare_dirs() {
     step "Prepare directories"
 
-    for dir in "$OUT_DIR" "$BOOT_IMAGE" "$AK3" $MODULES_STAGE; do
+    for dir in "$OUT_DIR" "$BOOT_IMAGE" "$AK3"; do
         reset_dir "$dir"
     done
 

@@ -14,3 +14,5 @@
 /.ccache/
 /libfakestat/
 /.vscode/
+/modules/flatten/
+/modules/staging/

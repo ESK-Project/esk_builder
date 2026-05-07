@@ -2,24 +2,22 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 alias b := build
 alias f := fmt
-alias g := generic
 alias gd := git-diff
 alias gl := git-log
 alias gs := git-status
 alias gsh := git-show
-alias x := xaga
 
 default:
     @just --list
 
 fmt:
-    git ls-files -z '*.sh' | xargs -0r shfmt -w -i 4 -ci -bn -sr
+    find . -type f -name '*.sh' -print0 | xargs -0r shfmt -w -i 4 -ci -bn -sr
 
 fmt-check:
-    git ls-files -z '*.sh' | xargs -0r shfmt -d -i 4 -ci -bn -sr
+    find . -type f -name '*.sh' -print0 | xargs -0r shfmt -d -i 4 -ci -bn -sr
 
 lint:
-    git ls-files -z '*.sh' | xargs -0r shellcheck -x
+    find . -type f -name '*.sh' -print0 | xargs -0r shellcheck -x
 
 check: fmt-check lint
 
@@ -36,13 +34,7 @@ git-show ref="HEAD":
     git show --stat --patch {{ref}}
 
 build *args:
-    env {{args}} ./build.sh
-
-xaga *args:
-    env BUILD_TARGET=xaga {{args}} ./build.sh
-
-generic *args:
-    env BUILD_TARGET=generic {{args}} ./build.sh
+    env {{args}} bash ./build.sh
 
 clean:
-    rm -rf out work staged boot_image build.log github.json
+    rm -rf out work build.log github.json

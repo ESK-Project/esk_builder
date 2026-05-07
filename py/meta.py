@@ -17,12 +17,12 @@ def die(reason: str) -> NoReturn:
 def usage() -> NoReturn:
     die(
         "Usage: github.py <output> <kernel_version> <kernel_name> <toolchain> "
-        "<package_name> <variant> <name> <out_dir> <release_repo> <release_branch>"
+        "<package_name> <name> <out_dir> <release_repo> <release_branch>"
     )
 
 
 def main() -> None:
-    if len(sys.argv) != 11:
+    if len(sys.argv) != 10:
         usage()
 
     (
@@ -31,7 +31,6 @@ def main() -> None:
         kernel_name,
         toolchain,
         package_name,
-        variant,
         name,
         out_dir,
         release_repo,
@@ -43,7 +42,6 @@ def main() -> None:
         "kernel_name": kernel_name,
         "toolchain": toolchain,
         "package_name": package_name,
-        "variant": variant,
         "name": name,
         "out_dir": out_dir,
         "release_repo": release_repo,

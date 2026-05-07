@@ -28,6 +28,7 @@ count() {
 
 validate_env() {
     info "Validating environment variables..."
+
     if [[ -z ${GH_TOKEN:-} ]]; then
         if [[ -x "$CLANG_BIN/clang" ]]; then
             :
@@ -45,15 +46,6 @@ validate_env() {
         export TG_BOT_TOKEN
         export TG_CHAT_ID
     fi
-
-    # Config checks
-    if is_true "$SUSFS" && ! is_true "$KSU"; then
-        error "Cannot use SUSFS without KernelSU"
-    fi
-
-    if is_true "$LXC" && [[ $BUILD_TARGET != "xaga" ]]; then
-        error "LXC is not supported for $BUILD_TARGET target"
-    fi
 }
 
 main() {
@@ -67,19 +59,9 @@ main() {
     count prepare_dirs
     count fetch_sources
     count setup_toolchain
-    count prepare_build
     count build_kernel
-    if [[ "$BUILD_TARGET" == "xaga" ]]; then
-        count build_module
-    fi
 
-    prepare_package_name
-
-    # Build flashable package
-    count package_anykernel "$PACKAGE_NAME"
-    count package_bootimg "$PACKAGE_NAME"
-
-    # Github Actions metadata
+    count prepare_package
     count write_metadata "$PACKAGE_NAME"
 
     local build_time="$SECONDS"

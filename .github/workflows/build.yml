@@ -4,64 +4,18 @@ permissions:
   actions: write
 
 on:
-  workflow_call:
-    inputs:
-      BUILD_TARGET:
-        type: string
-        required: true
-      KSU:
-        type: boolean
-        required: true
-      SUSFS:
-        type: boolean
-        required: true
-      LXC:
-        type: boolean
-        required: true
-      STOCK_CONFIG:
-        type: boolean
-        required: true
-      TG_NOTIFY:
-        type: boolean
-        required: true
-
   workflow_dispatch:
     inputs:
-      BUILD_TARGET:
-        description: "Build target"
-        default: xaga
-        type: choice
-        options:
-          - xaga
-          - generic
-
       BRANCH_OVERRIDE:
         description: "Kernel branch overriding"
         type: string
-
-      KSU:
-        description: "Include KernelSU?"
-        default: false
-        type: boolean
-
-      SUSFS:
-        description: "Include SUSFS?"
-        default: false
-        type: boolean
-
-      LXC:
-        description: "Apply LXC patch?"
-        default: false
-        type: boolean
-
-      STOCK_CONFIG:
-        description: "Spoof stock config?"
-        default: true
-        type: boolean
-
       TG_NOTIFY:
         description: "Telegram Notify"
         default: true
+        type: boolean
+      CREATE_RELEASE:
+        description: "Create release?"
+        default: false
         type: boolean
 
 env:
@@ -89,7 +43,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq \
-            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential python3-requests libfaketime lz4 just
+            aria2 bc bison ccache curl dpkg-dev fakeroot flex git jq just libfaketime make python3-requests tar xz-utils zip zstd
 
       - name: Compute ccache key
         run: |
@@ -100,23 +54,16 @@ jobs:
         uses: actions/cache/restore@v5.0.3
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-${{ env.clang_hash }}-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
-            ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-${{ github.ref_name }}-
-            ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-
-            ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-
+            ccache-${{ env.clang_hash }}-${{ github.ref_name }}-
             ccache-${{ env.clang_hash }}-
 
       - name: Build
         id: build
         env:
-          BUILD_TARGET: ${{ inputs.BUILD_TARGET }}
-          BRANCH_OVERRIDE: ${{ inputs.BRANCH_OVERRIDE }}
-          KSU: ${{ inputs.KSU }}
-          SUSFS: ${{ inputs.SUSFS }}
-          LXC: ${{ inputs.LXC }}
-          STOCK_CONFIG: ${{ inputs.STOCK_CONFIG }}
-          TG_NOTIFY: ${{ inputs.TG_NOTIFY }}
+          BRANCH_OVERRIDE: ${{ github.event.inputs.BRANCH_OVERRIDE }}
+          TG_NOTIFY: ${{ github.event.inputs.TG_NOTIFY }}
         run: |
           just build
 
@@ -129,7 +76,7 @@ jobs:
           with open(sys.argv[1]) as f:
               data = json.load(f)
 
-          keys = ["name", "variant", "out_dir", "package_name"]
+          keys = ["name", "out_dir", "package_name", "kernel_name", "kernel_version", "toolchain", "release_repo", "release_branch"]
           with open(sys.argv[2], "a") as out:
               for key in keys:
                   out.write(f"{key}={data[key]}\n")
@@ -140,25 +87,88 @@ jobs:
         uses: actions/cache/save@v5.0.3
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-${{ env.clang_hash }}-${{ github.ref_name }}-${{ github.sha }}
 
       - name: Upload GitHub metadata artifact
         uses: actions/upload-artifact@v6
         with:
-          name: github-metadata-${{ steps.build.outputs.variant }}
+          name: github-metadata
           path: ${{ github.workspace }}/github.json
           compression-level: 0
 
-      - name: Upload AnyKernel3 artifact
+      - name: Upload Build Log Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}-AnyKernel3
-          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-AnyKernel3.zip
+          name: build-log
+          path: ${{ github.workspace }}/build.log
           compression-level: 0
 
-      - name: Upload boot image artifact
+      - name: Upload Kernel Package Artifact
         uses: actions/upload-artifact@v6
-        if: inputs.BUILD_TARGET == 'generic'
         with:
-          name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}-boot
-          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot*.img
+          name: ${{ steps.build.outputs.name }}-package
+          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}.tar.xz
+          compression-level: 0
+
+      - name: Generate New Tag
+        if: ${{ github.event.inputs.CREATE_RELEASE == 'true' }}
+        env:
+          RELEASE_REPO: ${{ steps.build.outputs.release_repo }}
+        run: |
+          TAG_PY="$GITHUB_WORKSPACE/py/tag.py"
+
+          RELEASE_TAG=$(python3 "$TAG_PY" "$RELEASE_REPO")
+
+          echo "New tag: $RELEASE_TAG"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Upload Builds To Release
+        if: ${{ github.event.inputs.CREATE_RELEASE == 'true' }}
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          repository: ${{ steps.build.outputs.release_repo }}
+          name: "${{ steps.build.outputs.kernel_name }} Kernel ${{ env.RELEASE_TAG }}"
+          tag_name: ${{ env.RELEASE_TAG }}
+          token: ${{ secrets.GH_TOKEN }}
+          body: |
+            ### Build Information
+
+            | Field | Value |
+            |------|-------|
+            | **Kernel Name** | ${{ steps.build.outputs.kernel_name }} |
+            | **Kernel Version** | ${{ steps.build.outputs.kernel_version }} |
+            | **Compiler** | ${{ steps.build.outputs.toolchain }} |
+          generate_release_notes: false
+          prerelease: true
+          target_commitish: ${{ steps.build.outputs.release_branch }}
+          files: |
+            ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}.tar.xz
+            ${{ github.workspace }}/github.json
+            ${{ github.workspace }}/build.log
+
+      - name: Notify Telegram
+        if: ${{ github.event.inputs.CREATE_RELEASE == 'true' && github.event.inputs.TG_NOTIFY == 'true' }}
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          TG_PY="$GITHUB_WORKSPACE/py/tg.py"
+
+          escape_md_v2() {
+            python3 - "$*" <<'PY'
+          import sys, re
+          s = sys.argv[1]
+          escaped = re.sub(r'([\\_*[\]()~`>#+\-=|{}.!])', r'\\\1', s)
+          print(escaped, end="")
+          PY
+          }
+
+          message=$(
+              cat <<EOF
+          📦 *$(escape_md_v2 "${{ steps.build.outputs.kernel_name }} Release Build Completed!")*
+
+          [GitHub Release]($(escape_md_v2 "https://github.com/${{ steps.build.outputs.release_repo }}/releases/tag/${{ env.RELEASE_TAG }}"))
+          EOF
+          )
+
+          printf '%s' "$message" | python3 "$TG_PY" msg

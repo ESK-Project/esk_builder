@@ -22,9 +22,9 @@ send_start_msg() {
 
 🏷️ \#$(escape_md_v2 "$BUILD_TAG")
 $(tg_run_line)
-*Target:* $(escape_md_v2 "$BUILD_TARGET")
 *Defconfig:* $(escape_md_v2 "$KERNEL_DEFCONFIG")
-*Features:* KSU $(parse_bool "$KSU"), SuSFS $(parse_bool "$SUSFS"), LXC $(parse_bool "$LXC"), Stock config $(parse_bool "$STOCK_CONFIG")
+*Arch:* $(escape_md_v2 "$ARCH")
+*Cross compile:* $(escape_md_v2 "$CROSS_COMPILE")
 EOF
     )
     telegram_send_msg "$start_msg"

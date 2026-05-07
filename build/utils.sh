@@ -47,15 +47,6 @@ is_true() {
     [[ $1 == true ]]
 }
 
-parse_bool() {
-    if is_true "$1"; then
-        echo "on"
-    else
-        echo "off"
-    fi
-}
-
-# Normalize bool from input value, defaulting if empty
 norm_default() {
     local value="${1:-$2}"
     norm_bool "$value"
@@ -103,17 +94,9 @@ git_clone() {
         "$url" -b "${branch}" "${dest}"
 }
 
-# Setup KernelSU
-install_ksu() {
-    local repo="$1"
-    local ref="$2"
-    info "Install KernelSU: $repo@$ref"
-    curl -fsSL "https://raw.githubusercontent.com/$repo/$ref/kernel/setup.sh" | bash -s "$ref"
-}
-
 # Wrapper for scripts/config
 config() {
-    "$KERNEL/scripts/config" --file "$KERNEL/arch/arm64/configs/$KERNEL_DEFCONFIG" "$@"
+    "$KERNEL/scripts/config" --file "$KERNEL/arch/$ARCH/configs/$KERNEL_DEFCONFIG" "$@"
 }
 
 clang_lto() {

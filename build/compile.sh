@@ -1,38 +1,30 @@
 # shellcheck shell=bash
-# shellcheck disable=SC2164,SC2153
+# shellcheck disable=SC2164,SC2153,SC2034
 
 ################################################################################
 # Build compilation
 ################################################################################
 
 build_kernel() {
+    local defconfig_file="$KERNEL/arch/$ARCH/configs/$KERNEL_DEFCONFIG"
+
     step "Build kernel"
 
     cd "$KERNEL"
+    [[ -f $defconfig_file ]] || error "Defconfig not found: $KERNEL_DEFCONFIG"
 
     prune_bad_artifacts "$KERNEL_OUT"
 
-    if [[ "$BUILD_TARGET" == xaga ]]; then
-        info "Merging defconfig"
-        local configs="arch/arm64/configs"
-        KCONFIG_CONFIG="$configs/gki_defconfig" scripts/kconfig/merge_config.sh -m -r "$configs/gki_defconfig" "$configs/vendor/xiaomi_mt6895.config" "$configs/vendor/xaga.config"
-    fi
+    clang_lto "$CLANG_LTO"
 
     info "Generate defconfig: $KERNEL_DEFCONFIG"
     make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG"
 
-    info "Building Image and modules..."
-    make "${MAKE_ARGS[@]}" Image modules
+    KERNEL_VERSION=$(make -s "${MAKE_ARGS[@]}" kernelrelease)
+
+    info "Building deb packages..."
+    make "${MAKE_ARGS[@]}" bindeb-pkg
     success "Kernel built successfully"
 
-    if [[ "$BUILD_TARGET" == xaga ]]; then
-        info "Installing kernel modules..."
-        make "${MAKE_ARGS[@]}" INSTALL_MOD_PATH="$KERNEL_OUT"/modules modules_install
-    fi
-
     ccache --show-stats
-
-    # will be use later for metadata/telegram
-    # shellcheck disable=SC2034
-    KERNEL_VERSION=$(make -s kernelversion | cut -d- -f1)
 }

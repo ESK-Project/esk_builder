@@ -63,23 +63,16 @@ init_build() {
     BUILD_TAG="kernel_$(hexdump -v -e '/1 "%02x"' -n4 /dev/urandom)"
     info "Build tag generated: $BUILD_TAG"
 
-    # Kernel flavour
-    KSU="$(norm_bool "${KSU:-false}")"
-    SUSFS="$(norm_bool "${SUSFS:-false}")"
-    LXC="$(norm_bool "${LXC:-false}")"
-
-    STOCK_CONFIG_DEFAULT="true"
-    [[ "$BUILD_TARGET" == "xaga" ]] && STOCK_CONFIG_DEFAULT="false"
-    STOCK_CONFIG="$(norm_default "${STOCK_CONFIG-}" "$STOCK_CONFIG_DEFAULT")"
-
     # Compiler setup
     setup_ccache
     setup_ld_preload
 
     # Make arguments
     MAKE_ARGS=(
-        -j"$JOBS" O="$KERNEL_OUT" ARCH="arm64"
-        CC="ccache clang" CROSS_COMPILE="aarch64-linux-gnu-"
+        -j"$JOBS" O="$KERNEL_OUT" ARCH="$ARCH"
+        CROSS_COMPILE="$CROSS_COMPILE"
+        CC="ccache clang" HOSTCC="ccache clang"
+        LOCALVERSION="-esk-rpi"
         LLVM="1" LD="ld.lld"
     )
 
@@ -101,15 +94,13 @@ init_build() {
 prepare_dirs() {
     step "Prepare directories"
 
-    for dir in "$OUT_DIR" "$BOOT_IMAGE" "$AK3"; do
-        reset_dir "$dir"
-    done
+    reset_dir "$OUT_DIR"
 
     if is_true "$RESET_SOURCES"; then
-        for dir in "$KERNEL" "$BUILD_TOOLS" "$MKBOOTIMG" "$SUSFS_DIR"; do
-            reset_dir "$dir"
-        done
+        reset_dir "$KERNEL"
     fi
+
+    find "$WORKSPACE" -maxdepth 1 -type f -name '*.deb' -delete
 }
 
 fetch_sources() {
@@ -117,20 +108,19 @@ fetch_sources() {
 
     info "Cloning kernel source..."
     git_clone "$KERNEL_REPO" "$KERNEL"
-
-    info "Cloning AnyKernel3..."
-    git_clone "$AK3_REPO" "$AK3"
-
-    info "Cloning build tools..."
-    git_clone "$BUILD_TOOLS_REPO" "$BUILD_TOOLS"
-    git_clone "$MKBOOTIMG_REPO" "$MKBOOTIMG"
 }
 
 setup_toolchain() {
     step "Setup toolchain"
 
     _use_toolchain() {
-        export PATH="$WORKSPACE/build:$CLANG_BIN:$PATH"
+        [[ -x "$CLANG_BIN/clang" ]] || error "clang not found in toolchain: $CLANG_BIN/clang"
+        [[ -x "$CLANG_BIN/ld.lld" ]] || error "ld.lld not found in toolchain: $CLANG_BIN/ld.lld"
+
+        export PATH="$CLANG_BIN:$PATH"
+        "$CLANG_BIN/clang" --version > /dev/null
+        "$CLANG_BIN/ld.lld" --version > /dev/null
+
         COMPILER_STRING="$("$CLANG_BIN/clang" --version | head -n 1 | sed 's/(https..*//')"
         export KBUILD_BUILD_USER KBUILD_BUILD_HOST
     }
@@ -145,8 +135,9 @@ setup_toolchain() {
     local clang_url
     local auth_header=()
     [[ -n ${GH_TOKEN:-} ]] && auth_header=(-H "Authorization: Bearer $GH_TOKEN")
-    clang_url=$(curl -fsSL "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
+    clang_url=$(curl -fsSL \
         "${auth_header[@]}" \
+        "https://api.github.com/repos/bachnxuan/aosp_clang_mirror/releases/latest" \
         | grep "browser_download_url" \
         | grep ".tar.gz" \
         | cut -d '"' -f 4)

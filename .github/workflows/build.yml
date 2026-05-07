@@ -43,7 +43,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq \
-            aria2 bc bison ccache curl dpkg-dev fakeroot flex git jq just libfaketime make python3-requests tar xz-utils zip zstd
+            aria2 bc bison build-essential ccache curl debhelper dpkg-dev fakeroot flex gcc-aarch64-linux-gnu git jq just libelf-dev libfaketime libssl-dev make python3-requests tar xz-utils zip zstd
 
       - name: Compute ccache key
         run: |

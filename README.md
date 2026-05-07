@@ -16,13 +16,13 @@ build rpi 4b kernel
 ubuntu/debian:
 
 ```bash
-sudo apt install bc bison ccache curl dpkg-dev fakeroot flex gcc-aarch64-linux-gnu git jq just make python3-requests tar xz-utils zip zstd
+sudo apt install aria2 bc bison build-essential ccache curl debhelper dpkg-dev fakeroot flex gcc-aarch64-linux-gnu git jq just libelf-dev libfaketime libssl-dev make python3-requests tar xz-utils zip zstd
 ```
 
 fedora:
 
 ```bash
-sudo dnf install bc bison ccache curl fakeroot gcc-aarch64-linux-gnu git jq just make python3-requests tar xz zip zstd
+sudo dnf install aria2 bc bison ccache curl elfutils-libelf-devel fakeroot gcc-aarch64-linux-gnu git jq just libfaketime make openssl-devel python3-requests tar xz zip zstd
 ```
 
 ## run

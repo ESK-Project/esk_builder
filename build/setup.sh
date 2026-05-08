@@ -72,7 +72,6 @@ init_build() {
         -j"$JOBS" O="$KERNEL_OUT" ARCH="$ARCH"
         CROSS_COMPILE="$CROSS_COMPILE"
         CC="ccache clang" HOSTCC="ccache clang"
-        LOCALVERSION="-esk-rpi"
         LLVM="1" LD="ld.lld"
     )
 

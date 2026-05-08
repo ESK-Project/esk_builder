@@ -9,7 +9,7 @@
 # Project Identity
 ################################################################################
 KERNEL_NAME="ESK-RPi"
-KERNEL_DEFCONFIG="${KERNEL_DEFCONFIG:-bcm2711_defconfig}"
+KERNEL_DEFCONFIG="${KERNEL_DEFCONFIG:-esk_defconfig}"
 
 # Kbuild identity
 KBUILD_BUILD_USER="builder"

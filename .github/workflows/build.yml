@@ -39,6 +39,7 @@ on:
         options:
           - xaga
           - generic
+          - plato
 
       BRANCH_OVERRIDE:
         description: "Kernel branch overriding"

@@ -113,7 +113,7 @@ MOD="$WORKSPACE/modules"
 MOD_FLAT="$MOD/flatten"
 MOD_STAGE="$MOD/staging"
 
-MOD_LOAD="$MOD/load"
+MOD_LOAD="$MOD/load/$BUILD_TARGET"
 
 MODULE_PACKAGE="$OUT_DIR/module.tar.xz"
 

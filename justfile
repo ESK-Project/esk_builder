@@ -4,6 +4,7 @@ alias b := build
 alias f := fmt
 alias g := generic
 alias x := xaga
+alias p := plato
 
 default:
     @just --list
@@ -36,6 +37,9 @@ xaga *args:
 
 generic *args:
     env BUILD_TARGET=generic {{args}} ./build.sh
+
+plato *args:
+    env BUILD_TARGET=plato {{args}} ./build.sh
 
 clean:
     rm -rf out work staged boot_image build.log github.json

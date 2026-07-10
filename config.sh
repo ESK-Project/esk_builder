@@ -64,6 +64,12 @@ case "$BUILD_TARGET" in
         RELEASE_REPO="ESK-Project/esk-releases"
         STOCK_CONFIG_DEFAULT="false"
         ;;
+    plato)
+        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
+        AK3_REPO="github.com:A1cInt/AnyKernel3@plato"
+        RELEASE_REPO="ESK-Project/esk-releases"
+        STOCK_CONFIG_DEFAULT="false"
+        ;;
     generic)
         KERNEL_REPO="github.com:ESK-Project/android12-5.10-gki@${BRANCH_OVERRIDE:-main}"
         AK3_REPO="github.com:ESK-Project/AnyKernel3@generic"

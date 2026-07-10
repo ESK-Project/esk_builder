@@ -111,6 +111,10 @@ main() {
         count build_module
     fi
 
+    if [[ "$BUILD_TARGET" == "plato" ]]; then
+        count build_module
+    fi
+
     prepare_package_name
 
     # Build flashable package

@@ -8,12 +8,12 @@
 ################################################################################
 # Project Identity
 ################################################################################
-KERNEL_NAME="ESK"
+KERNEL_NAME="ALC-NEXT"
 KERNEL_DEFCONFIG="gki_defconfig"
 
 # Kbuild identity
 KBUILD_BUILD_USER="builder"
-KBUILD_BUILD_HOST="esk"
+KBUILD_BUILD_HOST="alc"
 
 # Used for timestamps in logs
 TIMEZONE="Asia/Ho_Chi_Minh"
@@ -24,7 +24,7 @@ RELEASE_BRANCH="main"
 ################################################################################
 # Build target
 ################################################################################
-BUILD_TARGET="${BUILD_TARGET:-xaga}"
+BUILD_TARGET="${BUILD_TARGET:-plato}"
 
 ################################################################################
 # Build options
@@ -32,8 +32,8 @@ BUILD_TARGET="${BUILD_TARGET:-xaga}"
 # Clang LTO mode: thin | full
 CLANG_LTO="thin"
 
-KSU_DEFAULT="false"
-SUSFS_DEFAULT="false"
+KSU_DEFAULT="true"
+SUSFS_DEFAULT="true"
 LXC_DEFAULT="false"
 TG_NOTIFY_DEFAULT="false"
 RESET_SOURCES_DEFAULT="false"
@@ -59,8 +59,8 @@ LIBFAKESTAT_RELEASE_API="https://api.github.com/repos/cctv18/libfakestat/release
 
 case "$BUILD_TARGET" in
     plato)
-        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
-        AK3_REPO="github.com:A1cInt/AnyKernel3@plato"
+        KERNEL_REPO="github.com:A1cInt/alc_android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
+        AK3_REPO="github.com:A1cInt/AnyKernel3@xaga"
         RELEASE_REPO="ESK-Project/esk-releases"
         STOCK_CONFIG_DEFAULT="false"
         ;;

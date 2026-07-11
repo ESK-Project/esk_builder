@@ -59,8 +59,8 @@ LIBFAKESTAT_RELEASE_API="https://api.github.com/repos/cctv18/libfakestat/release
 
 case "$BUILD_TARGET" in
     plato)
-        KERNEL_REPO="github.com:A1cInt/alc_android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
-        AK3_REPO="github.com:A1cInt/AnyKernel3@xaga"
+        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
+        AK3_REPO="github.com:A1cInt/AnyKernel3@plato"
         RELEASE_REPO="ESK-Project/esk-releases"
         STOCK_CONFIG_DEFAULT="false"
         ;;

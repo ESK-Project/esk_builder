@@ -107,7 +107,6 @@ main() {
     count setup_toolchain
     count prepare_build
     count build_kernel
-
     if [[ "$BUILD_TARGET" == "plato" ]]; then
         count build_module
     fi

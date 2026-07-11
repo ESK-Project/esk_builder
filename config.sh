@@ -58,12 +58,6 @@ GKI_URL="https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-202
 LIBFAKESTAT_RELEASE_API="https://api.github.com/repos/cctv18/libfakestat/releases/latest"
 
 case "$BUILD_TARGET" in
-    xaga)
-        KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
-        AK3_REPO="github.com:ESK-Project/AnyKernel3@xaga"
-        RELEASE_REPO="ESK-Project/esk-releases"
-        STOCK_CONFIG_DEFAULT="false"
-        ;;
     plato)
         KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
         AK3_REPO="github.com:A1cInt/AnyKernel3@plato"
@@ -113,7 +107,7 @@ MOD="$WORKSPACE/modules"
 MOD_FLAT="$MOD/flatten"
 MOD_STAGE="$MOD/staging"
 
-MOD_LOAD="$MOD/load/$BUILD_TARGET"
+MOD_LOAD="$MOD/load"
 
 MODULE_PACKAGE="$OUT_DIR/module.tar.xz"
 

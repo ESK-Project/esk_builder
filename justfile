@@ -3,7 +3,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 alias b := build
 alias f := fmt
 alias g := generic
-alias p := plato
+alias x := plato
 
 default:
     @just --list
@@ -31,11 +31,11 @@ check: fmt-check bash-check lint py-lint py-check
 build *args:
     env {{args}} ./build.sh
 
-generic *args:
-    env BUILD_TARGET=generic {{args}} ./build.sh
-
 plato *args:
     env BUILD_TARGET=plato {{args}} ./build.sh
+
+generic *args:
+    env BUILD_TARGET=generic {{args}} ./build.sh
 
 clean:
     rm -rf out work staged boot_image build.log github.json

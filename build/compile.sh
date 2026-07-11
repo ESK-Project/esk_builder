@@ -12,13 +12,6 @@ build_kernel() {
 
     prune_bad_artifacts "$KERNEL_OUT"
 
-    info "Generate defconfig: $KERNEL_DEFCONFIG"
-    make "${MAKE_ARGS[@]}" "$KERNEL_DEFCONFIG"
-
-    info "Building Image and modules..."
-    make "${MAKE_ARGS[@]}" Image modules
-    success "Kernel built successfully"
-
     if [[ "$BUILD_TARGET" == plato ]]; then
         info "Merging defconfig"
         local configs="arch/arm64/configs"

@@ -10,9 +10,8 @@ on:
         description: "Build target"
         type: choice
         required: true
-        default: xaga
+        default: plato
         options:
-          - xaga
           - generic
           - plato
       create_release:

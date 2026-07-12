@@ -1,6 +1,6 @@
 # esk builder
 
-builds esk kernel packages for xaga and generic.
+builds esk kernel packages for plato and generic.
 
 pulls sources and tools, applies optional patches, then builds and packages the kernel.
 
@@ -17,7 +17,7 @@ just build
 for a target-specific build:
 
 ```bash
-just xaga
+just plato
 just generic
 ```
 
@@ -35,7 +35,7 @@ just generic
 ## build flow
 
 ```text
-just build / just xaga / just generic
+just build / just plato / just generic
         |
         v
 build.sh
@@ -105,10 +105,10 @@ build with the default target:
 just build
 ```
 
-build xaga:
+build plato:
 
 ```bash
-just xaga
+just plato
 ```
 
 build generic:
@@ -120,7 +120,7 @@ just generic
 example:
 
 ```bash
-just xaga KSU=true SUSFS=true LXC=false
+just plato KSU=true SUSFS=true
 ```
 
 ## checks
@@ -153,12 +153,12 @@ just clean
 
 | env var         | purpose                                      | accepted values                  | default                           |
 | --------------- | -------------------------------------------- | -------------------------------- | --------------------------------- |
-| BUILD_TARGET    | select the build target                      | `xaga`, `generic`                | `xaga`                            |
+| BUILD_TARGET    | select the build target                      | `plato`, `generic`                | `plato`                            |
 | KSU             | enable KernelSU setup and config             | boolean                          | `false`                           |
 | SUSFS           | apply SuSFS patches and config               | boolean                          | `false`                           |
 | LXC             | apply the LXC patch                          | boolean                          | `false`                           |
-| STOCK_CONFIG    | apply the stock config patch                 | `auto`, `true`, `false`          | `xaga: false`, `generic: true`    |
-| BRANCH_OVERRIDE | override the target kernel branch            | branch name                      | `xaga: 16.2-rebase`, `generic: main` |
+| STOCK_CONFIG    | apply the stock config patch                 | `auto`, `true`, `false`          | `plato: false`, `generic: true`    |
+| BRANCH_OVERRIDE | override the target kernel branch            | branch name                      | `plato: 16.2-rebase`, `generic: main` |
 | JOBS            | set the make job count                       | integer                          | `nproc --all`                     |
 | RESET_SOURCES   | reset and re-clone source/tool dirs before build | boolean                      | `false` locally, `true` in ci     |
 | TG_NOTIFY       | send telegram updates                        | boolean                          | `false` locally, `true` in ci     |
@@ -173,7 +173,7 @@ notes:
 - only `STOCK_CONFIG` accepts `auto`; other boolean-like inputs fail clearly
 - `STOCK_CONFIG=auto` resolves to `false` for xaga and `true` for generic
 - `SUSFS` needs `KSU=true`
-- `LXC` only works with `BUILD_TARGET=xaga`
+- `LXC` not tested on plato!
 - `TG_NOTIFY=true` needs `TG_BOT_TOKEN` and `TG_CHAT_ID`
 - `GH_TOKEN` is optional, but helps when fetching latest release assets
 

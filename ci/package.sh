@@ -41,7 +41,7 @@ package_anykernel() {
 }
 
 package_bootimg() {
-    if [[ "$BUILD_TARGET" == "xaga" ]]; then
+    if [[ "$BUILD_TARGET" == "plato" ]]; then
         return
     fi
 

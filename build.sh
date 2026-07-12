@@ -82,7 +82,7 @@ validate_deps() {
             require_cmds patch
             ;;
         modules)
-            # before xaga module packaging
+            # before plato module packaging
             require_cmds depmod llvm-strip xz
             ;;
         bootimg)

@@ -2,6 +2,6 @@
   "variant": [
     { "name": "VNL", "KSU": false, "SUSFS": false, "LXC": false },
     { "name": "KSU", "KSU": true, "SUSFS": false, "LXC": false },
-    { "name": "KSU-SUSFS", "KSU": true, "SUSFS": true, "LXC": false },
+    { "name": "KSU-SUSFS", "KSU": true, "SUSFS": true, "LXC": false }
   ]
 }

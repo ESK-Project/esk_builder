@@ -32,8 +32,8 @@ BUILD_TARGET="${BUILD_TARGET:-plato}"
 # Clang LTO mode: thin | full
 CLANG_LTO="thin"
 
-KSU_DEFAULT="true"
-SUSFS_DEFAULT="true"
+KSU_DEFAULT="false"
+SUSFS_DEFAULT="false"
 LXC_DEFAULT="false"
 TG_NOTIFY_DEFAULT="false"
 RESET_SOURCES_DEFAULT="false"

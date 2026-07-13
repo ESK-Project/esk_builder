@@ -6,7 +6,7 @@ import typer
 from .common import escape_md_v2, stdin_text
 from .github_release import asset_url_api, asset_url_json, next_tag
 from .meta import write_metadata
-from .tg import send_document, send_message
+from .tg import send_document, send_document_gallery, send_message
 
 app = typer.Typer(no_args_is_help=True)
 release_app = typer.Typer(no_args_is_help=True)
@@ -74,6 +74,11 @@ def tg_msg() -> None:
 @tg_app.command("doc")
 def tg_doc(file: Path) -> None:
     send_document(file, stdin_text())
+
+
+@tg_app.command("gallery")
+def tg_gallery(files: list[Path]) -> None:
+    send_document_gallery(files, stdin_text())
 
 
 @util_app.command("escape-md-v2")

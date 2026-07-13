@@ -176,6 +176,7 @@ notes:
 - `LXC` only works with `BUILD_TARGET=xaga`
 - `TG_NOTIFY=true` needs `TG_BOT_TOKEN` and `TG_CHAT_ID`
 - `GH_TOKEN` is optional, but helps when fetching latest release assets
+- generic telegram success notifications upload one grouped message containing the AnyKernel3 zip plus a boot-image zip
 
 ## output
 
@@ -190,4 +191,3 @@ notes:
 | build.log                     | build log                               |
 
 where `<package>` has the format `${KERNEL_NAME}-${KERNEL_VERSION}-${VARIANT}` (with `-${KERNEL_COMMIT}` appended when `IS_RELEASE` is not `true`).
-

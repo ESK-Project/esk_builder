@@ -106,21 +106,17 @@ write_metadata() {
         "$KERNEL_COMMIT"
 }
 
-notify_success() {
-    local final_package="$1"
-    local build_time="$2"
-    # For indicating package type (boot image, anykernel3)
-    local additional_tag="$3"
-
+build_result_caption() {
+    local build_time="$1"
+    local additional_tag="$2"
+    local note="${3:-}"
     local kernel_commit_url
     kernel_commit_url="$(repo_spec "$KERNEL_REPO" github-commit-url "$KERNEL_COMMIT")"
 
     local minutes=$((build_time / 60))
     local seconds=$((build_time % 60))
 
-    local result_caption
-    result_caption=$(
-        cat << EOF
+    cat << EOF
 ✅ *$(escape_md_v2 "$KERNEL_NAME Build Successfully!")*
 
 🏷️ \#$(escape_md_v2 "$BUILD_TAG") \#$(escape_md_v2 "$additional_tag")
@@ -131,9 +127,18 @@ $(tg_run_line)
 *Commit:* [$(escape_md_v2 "$KERNEL_COMMIT")]($(escape_md_v2 "$kernel_commit_url"))
 *Compiler:* $(escape_md_v2 "$COMPILER_STRING")
 *Features:* KSU $(parse_bool "$KSU"), SuSFS $(is_true "$SUSFS" && escape_md_v2 "$SUSFS_VERSION" || echo "Disabled"), LXC $(parse_bool "$LXC"), Stock config $(parse_bool "$STOCK_CONFIG")
+$(if [[ -n $note ]]; then printf '*Note:* %s\n' "$(escape_md_v2 "$note")"; fi)
 EOF
-    )
+}
 
+notify_success() {
+    local final_package="$1"
+    local build_time="$2"
+    # For indicating package type (boot image, anykernel3)
+    local additional_tag="$3"
+
+    local result_caption
+    result_caption="$(build_result_caption "$build_time" "$additional_tag")"
     telegram_upload_file "$final_package" "$result_caption"
 }
 
@@ -143,16 +148,26 @@ telegram_notify() {
 
     # AnyKernel3
     local ak3_package="$OUT_DIR/$package_name-AnyKernel3.zip"
-    notify_success "$ak3_package" "$build_time" "anykernel3"
-
-    # Boot image
     if [[ "$BUILD_TARGET" == "xaga" ]]; then
+        notify_success "$ak3_package" "$build_time" "anykernel3"
         return
     fi
+
+    local boot_package="$OUT_DIR/$package_name-boot.zip"
     pushd "$OUT_DIR" > /dev/null
-    zip -9q -T "$package_name-boot.zip" "$package_name"-boot*.img
+    zip -9q -T "$(basename "$boot_package")" "$package_name"-boot*.img
     popd > /dev/null
 
-    notify_success "$OUT_DIR/$package_name-boot.zip" "$build_time" "boot_image"
-    rm -f "$OUT_DIR/$package_name-boot.zip"
+    local result_caption
+    result_caption="$(
+        build_result_caption \
+            "$build_time" \
+            "generic" \
+            "Boot image zip contains raw, gzip, and lz4 variants."
+    )"
+    telegram_upload_gallery \
+        "$result_caption" \
+        "$ak3_package" \
+        "$boot_package"
+    rm -f "$boot_package"
 }

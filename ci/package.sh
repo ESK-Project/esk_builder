@@ -146,7 +146,7 @@ telegram_notify() {
     notify_success "$ak3_package" "$build_time" "anykernel3"
 
     # Boot image
-    if [[ "$BUILD_TARGET" == "xaga" ]]; then
+    if [[ "$BUILD_TARGET" == "plato" ]]; then
         return
     fi
     pushd "$OUT_DIR" > /dev/null

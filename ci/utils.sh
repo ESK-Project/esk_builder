@@ -50,6 +50,12 @@ telegram_upload_file() {
     printf '%s' "$*" | py_cli tg doc "$file"
 }
 
+telegram_upload_gallery() {
+    is_true "${TG_NOTIFY:-false}" || return 0
+
+    printf '%s' "$1" | py_cli tg gallery "${@:2}"
+}
+
 init_logging() {
     # Clean logfile before writing
     : > "$LOGFILE"

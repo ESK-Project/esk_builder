@@ -47,3 +47,15 @@ class TelegramDocumentRequest(BaseModel):
     parse_mode: str = "MarkdownV2"
     disable_web_page_preview: str = "true"
     caption: str
+
+
+class TelegramMediaDocument(BaseModel):
+    type: str = "document"
+    media: str
+    caption: str | None = None
+    parse_mode: str | None = None
+
+
+class TelegramMediaGroupRequest(BaseModel):
+    chat_id: str
+    media: list[TelegramMediaDocument]

@@ -168,7 +168,7 @@ jobs:
             | **-VNL** | No KernelSU |
             | **-KSU** | KernelSU |
             | **-SUSFS** | SUSFS Support |
-            | **-LXC** | LXC Support for xaga builds |
+            | **-LXC** | LXC not tested for plato builds |
 
             > [!IMPORTANT]
             > For installation instructions and issue reporting guidelines, please refer to the README.md

@@ -152,6 +152,8 @@ Common configuration errors are reported before compilation. If a build rejects 
 
 ## output
 
+- generic telegram success notifications upload one grouped message containing the AnyKernel3 zip plus a boot-image zip
+
 Each build clears `out/` before packaging. `<package>` has the form `${KERNEL_NAME}-${KERNEL_VERSION}-${VARIANT}`. Local builds append `-${KERNEL_COMMIT}`; release builds do not.
 
 `VNL` means KernelSU is disabled. `KSU` means it is enabled. Enabled SuSFS and LXC features add `-SUSFS` and `-LXC` to the variant.

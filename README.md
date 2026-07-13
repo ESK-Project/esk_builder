@@ -28,7 +28,7 @@ just generic
 - build/: setup, source fetching, patching, and kernel compile steps
 - ci/: packaging, metadata, modules, and telegram helpers
 - py/: uv-managed python helper cli
-- modules/: `modules.load` files for xaga module packaging
+- modules/: `modules.load` files for plato module packaging
 - kernel_patches/: optional kernel patches
 - .github/workflows/: ci and release workflows
 
@@ -171,7 +171,7 @@ notes:
 
 - boolean values accept `true/false`, `t/f`, `yes/no`, `y/n`, `on/off`, and `1/0`
 - only `STOCK_CONFIG` accepts `auto`; other boolean-like inputs fail clearly
-- `STOCK_CONFIG=auto` resolves to `false` for xaga and `true` for generic
+- `STOCK_CONFIG=auto` resolves to `false` for plato and `true` for generic
 - `SUSFS` needs `KSU=true`
 - `LXC` not tested on plato!
 - `TG_NOTIFY=true` needs `TG_BOT_TOKEN` and `TG_CHAT_ID`

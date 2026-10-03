@@ -11,7 +11,7 @@
 DEVICE_NAME="xaga"
 KERNEL_NAME="ESK"
 KBUILD_BUILD_HOST="esk"
-DEVICE_KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-16.2-rebase}"
+DEVICE_KERNEL_REPO="github.com:ESK-Project/android_kernel_xiaomi_mt6895@${BRANCH_OVERRIDE:-main}"
 DEVICE_AK3_REPO="github.com:ESK-Project/AnyKernel3@xaga"
 DEVICE_RELEASE_REPO="ESK-Project/esk-releases"
 DEVICE_DEFCONFIG_OVERLAY="vendor/xaga.config"

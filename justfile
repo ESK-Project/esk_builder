@@ -1,9 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 alias b := build
-alias d := device
 alias f := fmt
-alias g := generic
 
 default:
     @just --list
@@ -15,27 +13,26 @@ fmt-check:
     git ls-files -z '*.sh' | xargs -0r shfmt -d -i 4 -ci -bn -sr
 
 bash-check:
-    git ls-files -z '*.sh' | xargs -0r bash -n
+    git ls-files -z '*.sh' | xargs -0r -n1 bash -n
 
 lint:
     git ls-files -z '*.sh' | xargs -0r shellcheck -x
 
 py-lint:
-    cd py && uv run ruff check src pyproject.toml
+    uv run --locked ruff check esk tests pyproject.toml
 
 py-check:
-    cd py && uv run python -m basedpyright src
+    uv run --locked python -m basedpyright esk
 
-check: fmt-check bash-check lint py-lint py-check
+test:
+    uv run --locked python -m unittest discover -s tests -v
 
+check: fmt-check bash-check lint py-lint py-check test
+
+[positional-arguments]
 build *args:
-    env {{args}} ./build.sh
+    uv run esk build "$@"
 
-device *args:
-    env BUILD_TARGET=device {{args}} ./build.sh
-
-generic *args:
-    env BUILD_TARGET=generic {{args}} ./build.sh
-
-clean:
-    rm -rf out work staged boot_image build.log github.json
+[positional-arguments]
+clean *args:
+    uv run esk clean "$@"

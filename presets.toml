@@ -1,0 +1,11 @@
+[vnl]
+ksu = false
+susfs = false
+
+[ksu]
+ksu = true
+susfs = false
+
+[ksu-susfs]
+ksu = true
+susfs = true

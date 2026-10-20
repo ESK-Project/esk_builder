@@ -1,189 +1,179 @@
-name: Kernel Builder
-permissions:
-  contents: write
-  actions: write
-
+name: Build kernel
 on:
-  workflow_call:
-    inputs:
-      BUILD_TARGET:
-        type: string
-        required: true
-      KSU:
-        type: boolean
-        required: true
-      SUSFS:
-        type: boolean
-        required: true
-      LXC:
-        type: boolean
-        required: true
-      STOCK_CONFIG:
-        type: string
-        required: true
-      TG_NOTIFY:
-        type: boolean
-        required: true
-      IS_RELEASE:
-        type: boolean
-        required: false
-        default: false
-
-
   workflow_dispatch:
     inputs:
-      BUILD_TARGET:
-        description: "Build target"
-        default: device
-        type: choice
-        options:
-          - device
-          - generic
-
-      BRANCH_OVERRIDE:
-        description: "Kernel branch overriding"
+      target:
+        description: Target name (empty uses builder.toml)
         type: string
-
-      KSU:
-        description: "Include KernelSU?"
-        default: false
-        type: boolean
-
-      SUSFS:
-        description: "Include SUSFS?"
-        default: false
-        type: boolean
-
-      LXC:
-        description: "Apply LXC patch?"
-        default: false
-        type: boolean
-
-      STOCK_CONFIG:
-        description: "Spoof stock config?"
-        default: auto
+        default: ""
+      preset:
+        description: Build preset
+        type: string
+        default: vnl
+      kernel_ref:
+        description: Kernel branch, tag, or commit (empty uses target config)
+        type: string
+        default: ""
+      stock_config:
+        description: Stock configuration
         type: choice
-        options:
-          - auto
-          - true
-          - false
-
-      TG_NOTIFY:
-        description: "Telegram Notify"
-        default: true
+        default: auto
+        options: [auto, 'true', 'false']
+      notify:
+        description: Upload to Telegram
         type: boolean
-
-      IS_RELEASE:
-        description: "Is release build?"
         default: false
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        default: ""
+      preset:
+        type: string
+        default: vnl
+      kernel_ref:
+        type: string
+        default: ""
+      stock_config:
+        type: string
+        default: auto
+      notify:
         type: boolean
+        default: false
+    secrets:
+      GH_TOKEN:
+        required: false
+      TG_BOT_TOKEN:
+        required: false
+      TG_CHAT_ID:
+        required: false
 
+permissions:
+  contents: read
 
 env:
   DEBIAN_FRONTEND: noninteractive
-  MAN_DISABLE: true
   TERM: xterm-256color
-  CCACHE_DIR: ${{ github.workspace }}/.ccache
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     env:
-      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TARGET: ${{ inputs.target }}
+      PRESET: ${{ inputs.preset }}
+      KERNEL_REF_INPUT: ${{ inputs.kernel_ref }}
+      STOCK_CONFIG_INPUT: ${{ inputs.stock_config }}
+      NOTIFY: ${{ inputs.notify }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.1
+      - uses: actions/setup-python@v6.2.0
         with:
-          fetch-depth: 1
+          python-version: '3.14'
 
+      - uses: astral-sh/setup-uv@v8.1.0
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -qq \
-            bc bison ccache curl flex git tar wget aria2 jq zip zstd upx build-essential libfaketime lz4 just
+          sudo apt-get install -y -qq aria2 bc bison bsdextrautils build-essential ccache curl \
+            flex git kmod libfaketime llvm patch tar xz-utils zip zstd
+          uv sync --locked --no-dev
 
-      - name: Setup Python
-        uses: actions/setup-python@v6.2.0
-        with:
-          python-version: "3.14"
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v8.1.0
-
-      - name: Compute ccache key
+      - name: Resolve build settings
+        id: settings
         run: |
-          echo "clang_hash=$(clang --version | sha256sum | cut -c1-10 || echo none)" >> "$GITHUB_ENV"
+          args=(build)
 
-      - name: Restore ccache
-        id: restore-ccache
+          if [[ -n "$TARGET" ]]; then
+            args+=("$TARGET")
+          fi
+
+          args+=(--preset "$PRESET")
+          args+=(--stock-config "$STOCK_CONFIG_INPUT")
+
+          if [[ -n "$KERNEL_REF_INPUT" ]]; then
+            args+=(--kernel-ref "$KERNEL_REF_INPUT")
+          fi
+
+          if [[ "$NOTIFY" == "true" ]]; then
+            args+=(--notify)
+          else
+            args+=(--no-notify)
+          fi
+
+          # Save arguments for the build step.
+          printf '%s\0' "${args[@]}" > "$RUNNER_TEMP/esk-args"
+
+          # Resolve settings without starting a build.
+          uv run --locked esk "${args[@]}" --dry-run \
+            > "$RUNNER_TEMP/esk-settings.json"
+
+          # Export resolved settings to GitHub Actions.
+          jq -r '
+            "target=\(.TARGET_NAME)",
+            "preset=\(.PRESET)",
+            "out_dir=\(.OUT_DIR)",
+            "cache_dir=\(.CCACHE_DIR)",
+            "cache_enabled=\(.CCACHE_ENABLED)"
+          ' "$RUNNER_TEMP/esk-settings.json" >> "$GITHUB_OUTPUT"
+
+          echo "CACHE_RESTORE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Restore compiler cache
+        id: cache
+        if: steps.settings.outputs.cache_enabled == 'true'
         uses: actions/cache/restore@v5.0.3
+        continue-on-error: true
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          path: ${{ steps.settings.outputs.cache_dir }}
+          key: ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-${{ github.ref_name }}-
-            ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-
-            ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-
-            ccache-${{ env.clang_hash }}-
+            ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-
+            ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.settings.outputs.target }}-
 
       - name: Build
         id: build
         env:
-          BUILD_TARGET: ${{ inputs.BUILD_TARGET }}
-          BRANCH_OVERRIDE: ${{ inputs.BRANCH_OVERRIDE }}
-          KSU: ${{ inputs.KSU }}
-          SUSFS: ${{ inputs.SUSFS }}
-          LXC: ${{ inputs.LXC }}
-          STOCK_CONFIG: ${{ inputs.STOCK_CONFIG }}
-          TG_NOTIFY: ${{ inputs.TG_NOTIFY }}
-          IS_RELEASE: ${{ inputs.IS_RELEASE }}
-
+          OUT_DIR: ${{ steps.settings.outputs.out_dir }}
         run: |
-          just build
+          echo "Cache restore: $(($(date +%s) - CACHE_RESTORE_STARTED))s" >> "$GITHUB_STEP_SUMMARY"
+          mapfile -d '' -t args < "$RUNNER_TEMP/esk-args"
+          status=0
+          uv run --locked esk "${args[@]}" || status=$?
+          if [[ -f "$OUT_DIR/compiled" ]]; then echo 'compiled=true' >> "$GITHUB_OUTPUT"; fi
+          exit "$status"
 
-          file="$GITHUB_WORKSPACE/github.json"
-          [[ -f "$file" ]] || { echo "::error::github.json missing"; exit 1; }
-          python3 - "$file" "$GITHUB_OUTPUT" <<'PY'
-          import json
-          import sys
+      - name: Start cache save timing
+        if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
+        run: echo "CACHE_SAVE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
 
-          with open(sys.argv[1]) as f:
-              data = json.load(f)
-
-          keys = ["name", "variant", "out_dir", "package_name"]
-          with open(sys.argv[2], "a") as out:
-              for key in keys:
-                  out.write(f"{key}={data[key]}\n")
-          PY
-
-      - name: Save ccache
-        if: ${{ always() && steps.restore-ccache.outputs.cache-hit != 'true' }}
+      - name: Save compiler cache
+        if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
         uses: actions/cache/save@v5.0.3
+        continue-on-error: true
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ env.clang_hash }}-${{ inputs.BUILD_TARGET }}-${{ inputs.LXC }}-${{ github.ref_name }}-${{ github.sha }}
+          path: ${{ steps.settings.outputs.cache_dir }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
-      - name: Upload GitHub metadata artifact
+      - name: Build summary
+        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
+        env:
+          OUT_DIR: ${{ steps.settings.outputs.out_dir }}
+        run: |
+          if [[ -n "${CACHE_SAVE_STARTED:-}" ]]; then
+            echo "Cache save: $(($(date +%s) - CACHE_SAVE_STARTED))s" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f "$OUT_DIR/ccache-stats.txt" ]]; then
+            cat "$OUT_DIR/ccache-stats.txt" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload packages and logs
+        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
         uses: actions/upload-artifact@v6
         with:
-          name: github-metadata-${{ steps.build.outputs.variant }}
-          path: ${{ github.workspace }}/github.json
+          name: ${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.settings.outputs.out_dir }}/
           compression-level: 0
-
-      - name: Upload AnyKernel3 artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}-AnyKernel3
-          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-AnyKernel3.zip
-          compression-level: 0
-
-      - name: Upload boot image artifact
-        uses: actions/upload-artifact@v6
-        if: inputs.BUILD_TARGET == 'generic'
-        with:
-          name: ${{ steps.build.outputs.name }}-${{ steps.build.outputs.variant }}-boot
-          path: ${{ steps.build.outputs.out_dir }}/${{ steps.build.outputs.package_name }}-boot*.img
+          if-no-files-found: warn

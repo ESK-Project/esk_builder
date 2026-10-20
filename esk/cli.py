@@ -29,7 +29,9 @@ app.add_typer(source_app, name="source")
 WORKSPACE = Path(__file__).resolve().parents[1]
 
 
-def settings_for(target: str | None, preset: str = "vnl", **overrides: object) -> BuildSettings:
+def settings_for(
+    target: str | None, preset: str = "vnl", **overrides: object
+) -> BuildSettings:
     try:
         return resolve_settings(WORKSPACE, target, preset, overrides)
     except (ValueError, OSError) as error:
@@ -53,30 +55,47 @@ def build(
     ccache_size: str | None = None,
     ccache_dir: Path | None = None,
     ccache: Annotated[bool | None, typer.Option("--ccache/--no-ccache")] = None,
-    reset_sources: Annotated[bool | None, typer.Option("--reset-sources/--no-reset-sources")] = None,
+    reset_sources: Annotated[
+        bool | None, typer.Option("--reset-sources/--no-reset-sources")
+    ] = None,
     notify: Annotated[bool | None, typer.Option("--notify/--no-notify")] = None,
     dry_run: bool = False,
 ) -> None:
     settings = settings_for(
-        target, preset, kernel_ref=kernel_ref, stock_config=stock_config, jobs=jobs,
-        ccache_size=ccache_size, ccache_dir=ccache_dir, ccache=ccache,
-        reset_sources=reset_sources, notify=notify,
+        target,
+        preset,
+        kernel_ref=kernel_ref,
+        stock_config=stock_config,
+        jobs=jobs,
+        ccache_size=ccache_size,
+        ccache_dir=ccache_dir,
+        ccache=ccache,
+        reset_sources=reset_sources,
+        notify=notify,
     )
     environment = settings.environment()
     if dry_run:
         typer.echo(json.dumps(environment, indent=2, sort_keys=True))
         return
     result = subprocess.run(
-        ["bash", str(WORKSPACE / "build.sh")], cwd=WORKSPACE,
-        env=os.environ | environment, check=False,
+        ["bash", str(WORKSPACE / "build.sh")],
+        cwd=WORKSPACE,
+        env=os.environ | environment,
+        check=False,
     )
-    raise typer.Exit(result.returncode if result.returncode >= 0 else 128 - result.returncode)
+    raise typer.Exit(
+        result.returncode if result.returncode >= 0 else 128 - result.returncode
+    )
 
 
 @app.command("clean")
-def clean(target: Annotated[str | None, typer.Argument()] = None, sources: bool = False) -> None:
+def clean(
+    target: Annotated[str | None, typer.Argument()] = None, sources: bool = False
+) -> None:
     settings = settings_for(target)
-    roots = ["work", "staging", "out"] + (["sources"] if sources else [])
+    roots = ["work", "staging", "out"]
+    if sources:
+        roots.append("sources")
     for name in roots:
         path = WORKSPACE / name / settings.target
         if path.exists():
@@ -103,7 +122,9 @@ def source_sync(
 @release_app.command("asset-url")
 def release_asset_url(
     pattern: Annotated[str, typer.Argument()] = "*.tar.gz",
-    api_url: str | None = typer.Option(default=None, help="Fetch release JSON from this GitHub API URL"),
+    api_url: str | None = typer.Option(
+        default=None, help="Fetch release JSON from this GitHub API URL"
+    ),
 ) -> None:
     if api_url is not None:
         typer.echo(asset_url_api(api_url, pattern))

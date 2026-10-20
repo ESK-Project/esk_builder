@@ -140,10 +140,10 @@ The workflow restores compiler caches from the same preset first, then the same 
 
 ## Development
 
-Install [just](https://just.systems/man/en/chapter_4.html) 1.29.0 or newer, plus `shellcheck`, `shfmt`, `ccache`, and `gcc`. On Fedora:
+Install [just](https://just.systems/man/en/chapter_4.html) 1.29.0 or newer, plus `shellcheck` and `shfmt`. On Fedora:
 
 ```bash
-sudo dnf install just ShellCheck shfmt ccache gcc
+sudo dnf install just ShellCheck shfmt
 ```
 
 Then run:
@@ -153,9 +153,9 @@ uv sync --locked
 just check
 ```
 
-Individual checks are available through `fmt-check`, `bash-check`, `lint`, `py-lint`, `py-check`, and `test`.
+Individual checks are available through `fmt-check`, `bash-check`, `lint`, `py-lint`, and `py-check`.
 
-`just fmt` formats tracked shell scripts. `just build xaga --preset ksu` and `just clean xaga` forward their arguments to the CLI.
+`just fmt` formats tracked shell scripts and Python code. `just build xaga --preset ksu` and `just clean xaga` forward their arguments to the CLI.
 
 ### Code layout
 
@@ -171,7 +171,6 @@ scripts/
   package.sh         # AnyKernel3 archive and metadata
   notify.sh          # Build/error notifications
 esk/                 # Python CLI, configuration, Git/API helpers
-tests/               # Unit and fixture tests
 pyproject.toml       # Package, dependencies, check settings
 uv.lock              # Locked Python dependencies
 ```

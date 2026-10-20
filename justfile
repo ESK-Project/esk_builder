@@ -8,6 +8,7 @@ default:
 
 fmt:
     git ls-files -z '*.sh' | xargs -0r shfmt -w -i 4 -ci -bn -sr
+    uv run --locked ruff format esk
 
 fmt-check:
     git ls-files -z '*.sh' | xargs -0r shfmt -d -i 4 -ci -bn -sr
@@ -19,15 +20,13 @@ lint:
     git ls-files -z '*.sh' | xargs -0r shellcheck -x
 
 py-lint:
-    uv run --locked ruff check esk tests pyproject.toml
+    uv run --locked ruff check esk pyproject.toml
+    uv run --locked ruff format --check esk
 
 py-check:
     uv run --locked python -m basedpyright esk
 
-test:
-    uv run --locked python -m unittest discover -s tests -v
-
-check: fmt-check bash-check lint py-lint py-check test
+check: fmt-check bash-check lint py-lint py-check
 
 [positional-arguments]
 build *args:

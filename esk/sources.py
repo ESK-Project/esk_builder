@@ -11,7 +11,8 @@ def sync_source(url: str, ref: str, destination: Path) -> str:
 
     def git(*args: str) -> str:
         return subprocess.check_output(
-            ["git", "-C", str(destination), *args], text=True,
+            ["git", "-C", str(destination), *args],
+            text=True,
         ).strip()
 
     if (destination / ".git").is_dir():

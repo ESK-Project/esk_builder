@@ -52,5 +52,3 @@ class TelegramDocumentRequest(BaseModel):
     parse_mode: str = "MarkdownV2"
     disable_web_page_preview: str = "true"
     caption: str
-
-

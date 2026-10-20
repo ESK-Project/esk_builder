@@ -10,58 +10,53 @@ github_release_asset_url() {
 setup_toolchain() {
     step "Setup toolchain"
 
-    _use_toolchain() {
-        export PATH="$CLANG_BIN:$PATH"
-        COMPILER_STRING="$("$CLANG_BIN/clang" --version | head -n 1 | sed 's/(https..*//')"
-        export COMPILER_STRING
-        export KBUILD_BUILD_USER KBUILD_BUILD_HOST
-    }
-
     if [[ -x "$CLANG_BIN/clang" ]]; then
         info "Using existing AOSP Clang toolchain"
-        _use_toolchain
-        return 0
-    fi
-
-    info "Fetching AOSP Clang toolchain"
-    local clang_url
-    clang_url=$(
-        github_release_asset_url \
-            "$CLANG_RELEASE_API" \
-            "clang-r*.tar.gz"
-    )
-
-    mkdir -p "$CLANG"
-
-    local aria_opts=(
-        -q -c -x16 -s16 -k8M -m 5 --retry-wait=5
-        --file-allocation=falloc
-        -d "$WORKSPACE" -o "clang-archive" "$clang_url"
-    )
-
-    if aria2c "${aria_opts[@]}"; then
-        success "Clang download successful!"
     else
-        error "Clang download failed."
+        info "Fetching AOSP Clang toolchain"
+        local clang_url
+        clang_url=$(github_release_asset_url "$CLANG_RELEASE_API" "clang-r*.tar.gz")
+        mkdir -p "$CLANG"
+
+        if aria2c -q -c -x16 -s16 -k8M -m 5 --retry-wait=5 \
+            --file-allocation=falloc -d "$WORKSPACE" -o "clang-archive" "$clang_url"; then
+            success "Clang download successful!"
+        else
+            error "Clang download failed."
+        fi
+
+        tar -xzf "$WORKSPACE/clang-archive" -C "$CLANG"
+        rm -f "$WORKSPACE/clang-archive"
     fi
 
-    tar -xzf "$WORKSPACE/clang-archive" -C "$CLANG"
-    rm -f "$WORKSPACE/clang-archive"
-
-    _use_toolchain
+    export PATH="$CLANG_BIN:$PATH"
+    COMPILER_STRING="$("$CLANG_BIN/clang" --version | head -n 1 | sed 's/(https..*//')"
+    export COMPILER_STRING KBUILD_BUILD_USER KBUILD_BUILD_HOST
 }
 
-# Fixed-time values are embedded in this hashed launcher.
-# shellcheck disable=SC2016
+# Keep preload libraries inside the launcher so ccache sees normal stat/time.
+# The fixed-time settings are hashed along with the launcher contents.
 gen_wrapper() {
     mkdir -p "$WRAPPER_DIR"
-    # Fixed time is part of the hashed launcher; ccache itself sees normal stat/time.
-    printf '#!/usr/bin/env bash\nset -Eeuo pipefail\nexport LD_PRELOAD="$LIBFAKESTAT $LIBFAKETIME"\nexport FAKESTAT=%q\nexport FAKETIME=%q\nexec "$@"\n' \
-        "$FAKE_TIME" "@$FAKE_TIME" > "$WRAPPER_DIR/esk-compiler-env"
+    {
+        cat << 'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+export LD_PRELOAD="$LIBFAKESTAT $LIBFAKETIME"
+EOF
+        printf 'export FAKESTAT=%q\nexport FAKETIME=%q\n' "$FAKE_TIME" "@$FAKE_TIME"
+        cat << 'EOF'
+exec "$@"
+EOF
+    } > "$WRAPPER_DIR/esk-compiler-env"
+
     local tool
     for tool in clang ld.lld; do
-        printf '#!/usr/bin/env bash\nset -Eeuo pipefail\nexec "$WRAPPER_DIR/esk-compiler-env" "$CLANG_BIN/%s" "$@"\n' \
-            "$tool" > "$WRAPPER_DIR/$tool"
+        cat > "$WRAPPER_DIR/$tool" << EOF
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec "\$WRAPPER_DIR/esk-compiler-env" "\$CLANG_BIN/$tool" "\$@"
+EOF
     done
     chmod +x "$WRAPPER_DIR/esk-compiler-env" "$WRAPPER_DIR/clang" "$WRAPPER_DIR/ld.lld"
 }

@@ -12,12 +12,21 @@ Python handles the CLI, configuration, APIs, and metadata. Bash runs the build s
 
 ## Setup
 
-Run these commands from the repository root on Ubuntu 24.04:
+Install the build dependencies from the repository root.
+
+Ubuntu 24.04:
 
 ```bash
 sudo apt update
 sudo apt install aria2 bc bison bsdextrautils build-essential ccache curl flex git \
   kmod libfaketime llvm patch tar xz-utils zip zstd
+```
+
+Fedora / Fedora WSL:
+
+```bash
+sudo dnf install aria2 bc bison util-linux gcc gcc-c++ make ccache curl flex git \
+  kmod libfaketime llvm patch tar xz zip zstd
 ```
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run:
@@ -131,7 +140,13 @@ The workflow restores compiler caches from the same preset first, then the same 
 
 ## Development
 
-Install `just`, `shellcheck`, `shfmt`, `ccache`, and `gcc`, then run:
+Install [just](https://just.systems/man/en/chapter_4.html) 1.29.0 or newer, plus `shellcheck`, `shfmt`, `ccache`, and `gcc`. On Fedora:
+
+```bash
+sudo dnf install just ShellCheck shfmt ccache gcc
+```
+
+Then run:
 
 ```bash
 uv sync --locked

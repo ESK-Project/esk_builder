@@ -15,7 +15,9 @@ jobs:
       - name: Install check tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y just shellcheck shfmt ccache gcc
+          sudo apt-get install -y curl shellcheck shfmt ccache gcc
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$RUNNER_TEMP/just"
+          echo "$RUNNER_TEMP/just" >> "$GITHUB_PATH"
           uv sync --locked
 
       - run: just check

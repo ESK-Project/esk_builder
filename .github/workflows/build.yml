@@ -1,8 +1,5 @@
 name: Build kernel
 on:
-  push:
-    branches: [xaga-6.12-ci]
-    paths: ["targets/**", "builder.toml", "esk/**", "uv.lock", "pyproject.toml", ".github/workflows/**"]
   workflow_dispatch:
     inputs:
       layout:

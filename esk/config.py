@@ -128,6 +128,16 @@ class BuildSettings(BaseModel):
         return environment
 
 
+def load_target(workspace: Path, target: str) -> dict[str, object]:
+    targets = {path.stem: path for path in (workspace / "targets").glob("*.toml")}
+    if target not in targets:
+        raise ValueError(
+            f"Unknown target: {target}. Available: {', '.join(sorted(targets))}"
+        )
+    with targets[target].open("rb") as handle:
+        return tomllib.load(handle)
+
+
 def resolve_settings(
     workspace: Path,
     target: str | None = None,
@@ -137,16 +147,12 @@ def resolve_settings(
     workspace = workspace.resolve()
     with (workspace / "builder.toml").open("rb") as handle:
         project = tomllib.load(handle)
-    default_target = project.pop("default_target")
+    default_target = str(project.pop("default_target"))
     if target is None:
         target = default_target
-    targets = {path.stem: path for path in (workspace / "targets").glob("*.toml")}
-    if target not in targets:
-        raise ValueError(
-            f"Unknown target: {target}. Available: {', '.join(sorted(targets))}"
-        )
-    with targets[target].open("rb") as handle:
-        device = tomllib.load(handle)
+    device = load_target(workspace, target)
+    if device.get("layout") == "ack":
+        raise ValueError("Use esk ack for ACK targets, or select this target in CI")
     with (workspace / "presets.toml").open("rb") as handle:
         presets = tomllib.load(handle)
     if preset not in presets:

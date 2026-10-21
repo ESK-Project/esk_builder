@@ -26,3 +26,4 @@ jobs:
           for preset in vnl ksu ksu-susfs; do
             uv run --locked esk build xaga --preset "$preset" --dry-run > /dev/null
           done
+          uv run --locked esk profile xaga-6.12 > /dev/null

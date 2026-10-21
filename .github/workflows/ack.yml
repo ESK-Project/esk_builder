@@ -1,0 +1,154 @@
+name: Xaga ACK 6.12
+on:
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        default: xaga-6.12
+      kernel_ref:
+        type: string
+        default: ""
+      modules_ref:
+        type: string
+        default: ""
+      action:
+        type: string
+        default: build
+    secrets:
+      SOURCE_READ_TOKEN:
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: xaga-ack-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache/ack
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_MAXSIZE: 2G
+    steps:
+      - uses: actions/checkout@v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check source access configuration
+        env:
+          SOURCE_READ_TOKEN: ${{ secrets.SOURCE_READ_TOKEN }}
+        run: |
+          mkdir -p sources/out
+          if [[ -z "$SOURCE_READ_TOKEN" ]]; then
+            echo "Set SOURCE_READ_TOKEN in ESK-Project/esk_builder Actions secrets with Contents read access to both private source repos." | tee sources/out/ci.log
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v8.1.0
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bc bison build-essential aria2 ccache flex kmod libdw-dev libelf-dev libssl-dev zstd
+          uv sync --locked --no-dev
+
+      - name: Resolve target profile
+        id: profile
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          uv run --locked esk profile "$TARGET" > sources/out/profile.json
+          jq -e '.layout == "ack"' sources/out/profile.json
+          jq -r 'to_entries[] | "\(.key)=\(.value)"' sources/out/profile.json >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6.0.1
+        with:
+          repository: ${{ steps.profile.outputs.kernel_repo }}
+          ref: ${{ inputs.kernel_ref || steps.profile.outputs.kernel_ref }}
+          token: ${{ secrets.SOURCE_READ_TOKEN }}
+          path: sources/kernel
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/checkout@v6.0.1
+        with:
+          repository: ${{ steps.profile.outputs.modules_repo }}
+          ref: ${{ inputs.modules_ref || steps.profile.outputs.modules_ref }}
+          token: ${{ secrets.SOURCE_READ_TOKEN }}
+          path: sources/modules
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Record selected sources
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess
+          data = {name: subprocess.check_output(['git', '-C', path, 'rev-parse', 'HEAD'], text=True).strip() for name, path in [('builder', '.'), ('kernel', 'sources/kernel'), ('modules', 'sources/modules')]}
+          pathlib.Path('sources/out/build-inputs.json').write_text(json.dumps(data, indent=2))
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('```json\n' + json.dumps(data, indent=2) + '\n```\n')
+          PY
+
+      - name: Prepare Clang
+        run: |
+          export WORKSPACE="$PWD"
+          export CLANG="$WORKSPACE/tools/clang"
+          export CLANG_BIN="$CLANG/bin"
+          export CLANG_RELEASE_API
+          CLANG_RELEASE_API=$(python3 -c 'import tomllib; print(tomllib.load(open("builder.toml", "rb"))["clang_api"])')
+          STEP=1
+          source scripts/common.sh
+          source scripts/toolchain.sh
+          setup_toolchain
+          "$CLANG_BIN/clang" --version | tee sources/out/clang-version.txt
+
+      - uses: actions/cache/restore@v5.0.3
+        id: cache
+        with:
+          path: .ccache/ack
+          key: ack-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ack-${{ runner.os }}-
+      - name: Build selected source pair
+        id: build
+        env:
+          MODE: ${{ inputs.action }}
+        run: |
+          uv run --locked esk ack sources/modules --llvm tools/clang --out sources/out --jobs "$(nproc)" --action "$MODE" 2>&1 | tee sources/out/ci.log
+      - name: Archive built modules
+        if: steps.build.outcome == 'success' && inputs.action == 'build'
+        run: tar -I 'zstd -T0 -3' -cf sources/out/modules.tar.zst -C sources/out modules
+      - name: Compiler cache statistics
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' && steps.build.outcome != '' }}
+        run: ccache --show-stats | tee sources/out/ccache-stats.txt
+      - uses: actions/cache/save@v5.0.3
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' && steps.build.outcome != '' }}
+        continue-on-error: true
+        with:
+          path: .ccache/ack
+          key: ack-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload build outputs and failure logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: xaga-ack-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
+          path: |
+            sources/out/ci.log
+            sources/out/build.log
+            sources/out/profile.json
+            sources/out/build-inputs.json
+            sources/out/clang-version.txt
+            sources/out/ccache-stats.txt
+            sources/out/.config
+            sources/out/Module.symvers
+            sources/out/include/config/kernel.release
+            sources/out/arch/arm64/boot/Image.gz
+            sources/out/dt/
+            sources/out/modules.tar.zst

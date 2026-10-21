@@ -1,7 +1,24 @@
 name: Build kernel
 on:
+  push:
+    branches: [xaga-6.12-ci]
+    paths: ["targets/**", "builder.toml", "esk/**", "uv.lock", "pyproject.toml", ".github/workflows/**"]
   workflow_dispatch:
     inputs:
+      layout:
+        description: Build layout
+        type: choice
+        options: [ack, gki]
+        default: ack
+      modules_ref:
+        description: ACK modules ref (empty uses target profile)
+        type: string
+        default: ""
+      action:
+        description: ACK build stage
+        type: choice
+        options: [build, configure, check]
+        default: build
       target:
         description: Target name (empty uses builder.toml)
         type: string
@@ -25,6 +42,15 @@ on:
         default: false
   workflow_call:
     inputs:
+      layout:
+        type: string
+        default: gki
+      modules_ref:
+        type: string
+        default: ""
+      action:
+        type: string
+        default: build
       target:
         type: string
         default: ""
@@ -41,6 +67,8 @@ on:
         type: boolean
         default: false
     secrets:
+      SOURCE_READ_TOKEN:
+        required: false
       GH_TOKEN:
         required: false
       TG_BOT_TOKEN:
@@ -56,7 +84,19 @@ env:
   TERM: xterm-256color
 
 jobs:
+  ack:
+    if: ${{ inputs.layout != 'gki' }}
+    uses: ./.github/workflows/ack.yml
+    with:
+      target: ${{ inputs.target || 'xaga-6.12' }}
+      kernel_ref: ${{ inputs.kernel_ref }}
+      modules_ref: ${{ inputs.modules_ref }}
+      action: ${{ inputs.action || 'build' }}
+    secrets:
+      SOURCE_READ_TOKEN: ${{ secrets.SOURCE_READ_TOKEN }}
+
   build:
+    if: ${{ inputs.layout == 'gki' }}
     runs-on: ubuntu-latest
     env:
       TARGET: ${{ inputs.target }}

@@ -1,0 +1,6 @@
+layout = "ack"
+description = "Xiaomi xaga (MT6895), ACK 6.12"
+kernel_repo = "bachnxuan/android_kernel_xiaomi_mt6895-6.12"
+kernel_ref = "xaga-integration"
+modules_repo = "bachnxuan/android_kernel_modules_xiaomi_mt6895-6.12"
+modules_ref = "xaga-integration"

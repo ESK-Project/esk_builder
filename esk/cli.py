@@ -9,7 +9,7 @@ from typing import Annotated
 import typer
 
 from .common import die, stdin_text
-from .config import BuildSettings, resolve_settings
+from .config import BuildSettings, load_target, resolve_settings
 from .github_release import asset_url_api, asset_url_json
 from .meta import write_metadata
 from .sources import sync_source
@@ -41,8 +41,17 @@ def settings_for(
 @app.command("targets")
 def list_targets() -> None:
     for path in sorted((WORKSPACE / "targets").glob("*.toml")):
-        settings = settings_for(path.stem)
-        typer.echo(f"{settings.target}: {settings.description}")
+        config = load_target(WORKSPACE, path.stem)
+        typer.echo(f"{path.stem}: {config['description']}")
+
+
+@app.command("profile")
+def profile(target: Annotated[str, typer.Argument()]) -> None:
+    try:
+        config = load_target(WORKSPACE, target)
+    except (ValueError, OSError) as error:
+        raise typer.BadParameter(str(error)) from error
+    typer.echo(json.dumps(config, indent=2))
 
 
 @app.command("build")
@@ -83,6 +92,40 @@ def build(
         env=os.environ | environment,
         check=False,
     )
+    raise typer.Exit(
+        result.returncode if result.returncode >= 0 else 128 - result.returncode
+    )
+
+
+@app.command("ack")
+def ack(
+    modules: Annotated[Path, typer.Argument()],
+    llvm: Annotated[Path, typer.Option()],
+    action: str = "build",
+    out: Path | None = None,
+    jobs: Annotated[int, typer.Option(min=1)] = 8,
+    dry_run: bool = False,
+) -> None:
+    if action not in {"check", "configure", "build"}:
+        raise typer.BadParameter("Action must be check, configure, or build")
+    runner = modules.resolve() / "xaga/build.py"
+    if not runner.is_file():
+        raise typer.BadParameter(f"Missing ACK build entry point: {runner}")
+    args = [
+        sys.executable,
+        "-B",
+        str(runner),
+        action,
+        "--llvm",
+        str(llvm.resolve()),
+        "--jobs",
+        str(jobs),
+    ]
+    if out is not None:
+        args.extend(["--out", str(out.resolve())])
+    if dry_run:
+        args.append("--dry-run")
+    result = subprocess.run(args, check=False)
     raise typer.Exit(
         result.returncode if result.returncode >= 0 else 128 - result.returncode
     )

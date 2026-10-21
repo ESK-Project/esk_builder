@@ -117,6 +117,7 @@ jobs:
         env:
           MODE: ${{ inputs.action }}
         run: |
+          set -o pipefail
           uv run --locked esk ack sources/modules --llvm tools/clang --out sources/out --jobs "$(nproc)" --action "$MODE" 2>&1 | tee sources/out/ci.log
       - name: Archive built modules
         if: steps.build.outcome == 'success' && inputs.action == 'build'

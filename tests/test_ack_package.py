@@ -44,6 +44,49 @@ class AckPackageTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module_order(root)
 
+    def test_probe_dependencies_and_suffixed_softdeps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            names = [
+                "extcon-mtk-usb",
+                "tcpc_mt6375",
+                "tcpc_class",
+                "mtu3",
+                "xhci-mtk-hcd-v2",
+                "mediatek-drm",
+                "mtk_iommu",
+                "mtk-scpsys-mt6895",
+                "mtk-smi",
+                "a-consumer",
+            ]
+            paths = [f"updates/{name}.ko" for name in names] + ["kernel/z-provider.ko"]
+            for name in paths:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            (root / "modules.dep").write_text("".join(f"{name}:\n" for name in paths))
+            (root / "modules.softdep").write_text(
+                "softdep a_consumer pre: z_provider.ko\n"
+            )
+            order = module_order(root)
+            pairs = [
+                ("z-provider", "a-consumer"),
+                ("xhci-mtk-hcd-v2", "mtu3"),
+                ("mtu3", "tcpc_mt6375"),
+                ("tcpc_mt6375", "extcon-mtk-usb"),
+                ("tcpc_class", "extcon-mtk-usb"),
+            ]
+            pairs += [
+                (name, "mediatek-drm")
+                for name in ("mtk_iommu", "mtk-scpsys-mt6895", "mtk-smi")
+            ]
+            for provider, consumer in pairs:
+                with self.subTest(provider=provider, consumer=consumer):
+                    self.assertIn(provider + ".ko", order)
+                    self.assertLess(
+                        order.index(provider + ".ko"), order.index(consumer + ".ko")
+                    )
+
     def test_standard_dt_table(self):
         payload = b"device-tree"
         data = dt_image(payload)

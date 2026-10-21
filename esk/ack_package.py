@@ -9,6 +9,15 @@ from pathlib import Path
 
 from .config import load_target
 
+PROBE_DEPENDENCIES = {
+    "mtu3.ko": ("xhci-mtk-hcd-v2.ko", "xhci-mtk-hcd.ko"),
+    "mt6375-charger.ko": ("mtu3.ko",),
+    "tcpc_class.ko": ("mtu3.ko",),
+    "tcpc_mt6375.ko": ("mtu3.ko",),
+    "extcon-mtk-usb.ko": ("mtu3.ko", "tcpc_mt6375.ko", "tcpc_class.ko"),
+    "mediatek-drm.ko": ("mtk_iommu.ko", "mtk-scpsys-mt6895.ko", "mtk-smi.ko"),
+}
+
 
 def dt_image(payload: bytes) -> bytes:
     header = struct.pack(">8I", 0xD7B7AB1E, 64 + len(payload), 32, 32, 1, 32, 4096, 0)
@@ -29,22 +38,24 @@ def module_order(root: Path) -> list[str]:
         fields = line.split()
         if len(fields) < 3 or fields[0] != "softdep":
             continue
-        module = names.get(fields[1].replace("-", "_"))
+        module = names.get(fields[1].removesuffix(".ko").replace("-", "_"))
         if module is None:
             continue
         mode = ""
         for field in fields[2:]:
             if field in {"pre:", "post:"}:
                 mode = field
-            elif dependency := names.get(field.replace("-", "_")):
+            elif dependency := names.get(field.removesuffix(".ko").replace("-", "_")):
                 if mode == "pre:":
                     graph[module].add(dependency)
                 elif mode == "post:":
                     graph[dependency].add(module)
-    # mtu3 probes its xHCI child synchronously, without a symbol dependency.
-    for host in ("xhci-mtk-hcd-v2.ko", "xhci-mtk-hcd.ko"):
-        if host in graph and "mtu3.ko" in graph:
-            graph["mtu3.ko"].add(host)
+    # Probe-time device lookups also require providers without symbol dependencies.
+    for module, dependencies in PROBE_DEPENDENCIES.items():
+        if module in graph:
+            graph[module].update(
+                dependency for dependency in dependencies if dependency in graph
+            )
     selected = {path.name for path in (root / "updates").rglob("*.ko")}
     if not selected:
         raise ValueError("No installed donor modules")
@@ -133,8 +144,34 @@ def package_ack(workspace: Path, target: str, out: Path, anykernel: Path) -> lis
                     "-euo",
                     "pipefail",
                     "-c",
-                    "source scripts/common.sh; source scripts/modules.sh; source scripts/package.sh; "
-                    "vendor_boot; vendor_dlkm; "
+                    "source scripts/common.sh; source scripts/modules.sh; vendor_boot; vendor_dlkm",
+                ],
+                cwd=workspace,
+                env=environment,
+                check=True,
+            )
+            for partition in ("vendor_boot", "vendor_dlkm"):
+                module_dir = stage / "modules" / partition / "lib/modules"
+                with (module_dir / "modules.softdep").open("a") as softdep:
+                    for module, dependencies in PROBE_DEPENDENCIES.items():
+                        if not (module_dir / module).is_file():
+                            continue
+                        providers = [
+                            dependency.removesuffix(".ko")
+                            for dependency in dependencies
+                            if (module_dir / dependency).is_file()
+                        ]
+                        if providers:
+                            softdep.write(
+                                f"softdep {module.removesuffix('.ko')} pre: {' '.join(providers)}\n"
+                            )
+            subprocess.run(
+                [
+                    "bash",
+                    "-euo",
+                    "pipefail",
+                    "-c",
+                    "source scripts/common.sh; source scripts/package.sh; "
                     'tar -C "$MOD_STAGE" -cJf "$MODULE_PACKAGE" vendor_dlkm vendor_boot; '
                     'package_anykernel "$PACKAGE_NAME"',
                 ],

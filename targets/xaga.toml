@@ -1,0 +1,9 @@
+description = "Xiaomi xaga (MT6895)"
+kernel_url = "https://github.com/ESK-Project/android_kernel_xiaomi_mt6895"
+kernel_ref = "main"
+ak3_url = "https://github.com/ESK-Project/AnyKernel3"
+ak3_ref = "xaga"
+defconfig = "gki_defconfig"
+defconfig_overlays = ["vendor/xiaomi_mt6895.config", "vendor/xaga.config"]
+module_load_dir = "targets/xaga"
+stock_config_default = false

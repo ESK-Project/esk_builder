@@ -1,21 +1,10 @@
-# Build outputs
+# Build-managed paths
 /out/
 /work/
-/boot_image/
-/clang/
-/kernel/
-/build/clang
-/build/ld.lld
-/anykernel3/
-/build-tools/
-/mkbootimg/
-/susfs/
-/staged/
-/build.log
-/github.env
-/github.json
+/staging/
+/sources/
+/tools/
 /.ccache/
-/libfakestat/
 
 # Editor state
 /.vscode/
@@ -24,10 +13,7 @@
 *~
 
 # Python
-/modules/flatten/
-/modules/staging/
-/py/.venv/
-/py/.python-version
-/py/**/__pycache__/
-/py/.mypy_cache/
-/py/.ruff_cache/
+/.venv/
+/.python-version
+**/__pycache__/
+/.ruff_cache/

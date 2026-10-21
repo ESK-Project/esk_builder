@@ -1,62 +1,28 @@
 name: Check
-
-on:
-  pull_request:
-    paths:
-      - "**/*.sh"
-      - "py/**/*.py"
-      - "py/pyproject.toml"
-      - "py/uv.lock"
-      - "justfile"
-      - ".github/workflows/check.yml"
-  push:
-    paths:
-      - "**/*.sh"
-      - "py/**/*.py"
-      - "py/pyproject.toml"
-      - "py/uv.lock"
-      - "justfile"
-      - ".github/workflows/check.yml"
-  workflow_dispatch:
-
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
-  bash:
+  check:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6.0.1
-
-      - name: Install shell tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y just shellcheck shfmt
-
-      - name: Run bash checks
-        run: just fmt-check bash-check lint
-
-  python:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6.0.1
-
-      - name: Setup Python
-        uses: actions/setup-python@v6.2.0
+      - uses: actions/checkout@v6.0.1
+      - uses: actions/setup-python@v6.2.0
         with:
-          python-version: "3.14"
+          python-version: '3.14'
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v8.1.0
-
-      - name: Sync python dependencies
-        run: uv sync --project py --group dev
-
-      - name: Install required dependencies
+      - uses: astral-sh/setup-uv@v8.1.0
+      - name: Install check tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y just
+          sudo apt-get update -qq
+          sudo apt-get install -y curl shellcheck shfmt
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$RUNNER_TEMP/just"
+          echo "$RUNNER_TEMP/just" >> "$GITHUB_PATH"
+          uv sync --locked
 
-      - name: Run python checks
-        run: just py-lint py-check
+      - run: just check
+      - name: Validate presets
+        run: |
+          for preset in vnl ksu ksu-susfs; do
+            uv run --locked esk build xaga --preset "$preset" --dry-run > /dev/null
+          done

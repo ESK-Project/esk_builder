@@ -131,6 +131,16 @@ jobs:
         with:
           path: .ccache/ack
           key: ack-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload build logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: xaga-ack-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            sources/out/build.log
+            sources/out/ci.log
       - name: Upload build outputs and failure logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6

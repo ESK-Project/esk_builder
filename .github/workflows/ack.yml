@@ -53,7 +53,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq bc bison build-essential aria2 ccache flex kmod libdw-dev libelf-dev libssl-dev zstd
+          sudo apt-get install -y -qq bc bison build-essential aria2 ccache flex kmod libdw-dev libelf-dev libssl-dev zstd zip xz-utils
           uv sync --locked --no-dev
 
       - name: Resolve target profile
@@ -83,11 +83,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - uses: actions/checkout@v6.0.1
+        with:
+          repository: ${{ steps.profile.outputs.ak3_repo }}
+          ref: ${{ steps.profile.outputs.ak3_ref }}
+          path: sources/anykernel3
+          persist-credentials: false
+
       - name: Record selected sources
         run: |
           python3 - <<'PY'
           import json, pathlib, subprocess
-          data = {name: subprocess.check_output(['git', '-C', path, 'rev-parse', 'HEAD'], text=True).strip() for name, path in [('builder', '.'), ('kernel', 'sources/kernel'), ('modules', 'sources/modules')]}
+          data = {name: subprocess.check_output(['git', '-C', path, 'rev-parse', 'HEAD'], text=True).strip() for name, path in [('builder', '.'), ('kernel', 'sources/kernel'), ('modules', 'sources/modules'), ('anykernel3', 'sources/anykernel3')]}
           pathlib.Path('sources/out/build-inputs.json').write_text(json.dumps(data, indent=2))
           with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('```json\n' + json.dumps(data, indent=2) + '\n```\n')
@@ -122,6 +129,13 @@ jobs:
       - name: Archive built modules
         if: steps.build.outcome == 'success' && inputs.action == 'build'
         run: tar -I 'zstd -T0 -3' -cf sources/out/modules.tar.zst -C sources/out modules
+      - name: Package AnyKernel3
+        if: steps.build.outcome == 'success' && inputs.action == 'build'
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -o pipefail
+          uv run --locked esk pack-ack sources/out --anykernel sources/anykernel3 --target "$TARGET" 2>&1 | tee -a sources/out/ci.log
       - name: Compiler cache statistics
         if: ${{ !cancelled() && steps.build.outcome != 'skipped' && steps.build.outcome != '' }}
         run: ccache --show-stats | tee sources/out/ccache-stats.txt
@@ -163,3 +177,4 @@ jobs:
             sources/out/arch/arm64/boot/Image.gz
             sources/out/dt/
             sources/out/modules.tar.zst
+            sources/out/ak3/*.zip

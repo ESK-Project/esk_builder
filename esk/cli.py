@@ -8,6 +8,7 @@ from typing import Annotated
 
 import typer
 
+from .ack_package import package_ack
 from .common import die, stdin_text
 from .config import BuildSettings, load_target, resolve_settings
 from .github_release import asset_url_api, asset_url_json
@@ -129,6 +130,19 @@ def ack(
     raise typer.Exit(
         result.returncode if result.returncode >= 0 else 128 - result.returncode
     )
+
+
+@app.command("pack-ack")
+def pack_ack(
+    out: Annotated[Path, typer.Argument()],
+    anykernel: Annotated[Path, typer.Option()],
+    target: str = "xaga-6.12",
+) -> None:
+    try:
+        for package in package_ack(WORKSPACE, target, out, anykernel):
+            typer.echo(package)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        die(str(error))
 
 
 @app.command("clean")

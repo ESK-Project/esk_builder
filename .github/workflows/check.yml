@@ -21,6 +21,8 @@ jobs:
           uv sync --locked
 
       - run: just check
+      - name: Check ACK packaging
+        run: uv run --locked python -m unittest discover -s tests -p test_ack_package.py
       - name: Validate presets
         run: |
           for preset in vnl ksu ksu-susfs; do

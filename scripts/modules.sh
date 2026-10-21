@@ -6,12 +6,14 @@ flatten() {
 
     step "Flatten modules"
 
-    shopt -s globstar nullglob
-    for file in "$KERNEL_OUT"/modules/**/*.ko; do
-        cp -p "$file" "$MOD_FLAT"
-        llvm-strip --strip-debug "$MOD_FLAT/$(basename "$file")"
-    done
-    shopt -u globstar nullglob
+    local name current="$INSTALLED_MODULES/lib/modules/$KERNEL_RELEASE"
+    [[ -d $current ]] || fatal "Installed modules missing: $current"
+    while IFS= read -r -d '' file; do
+        name="$(basename "$file")"
+        [[ ! -e "$MOD_FLAT/$name" ]] || fatal "Duplicate module basename: $name ($file)"
+        cp -p "$file" "$MOD_FLAT/$name"
+        llvm-strip --strip-debug "$MOD_FLAT/$name"
+    done < <(find "$current" -type f -name '*.ko' -print0)
 
     success "Modules flattened"
 }
@@ -27,8 +29,8 @@ vendor_boot() {
     load_vb="$MOD_LOAD/modules.load.vendor_boot"
     load_rc="$MOD_LOAD/modules.load.recovery"
 
-    krel="$(make -s -C "$KERNEL" O="$KERNEL_OUT" kernelrelease)"
-    src="$KERNEL_OUT/modules/lib/modules/$krel"
+    krel="$KERNEL_RELEASE"
+    src="$INSTALLED_MODULES/lib/modules/$krel"
 
     payload="$MOD_STAGE/vendor_boot"
     mods_dir="$payload/lib/modules"
@@ -73,8 +75,8 @@ vendor_dlkm() {
 
     load_dlkm="$MOD_LOAD/modules.load"
 
-    krel="$(make -s -C "$KERNEL" O="$KERNEL_OUT" kernelrelease)"
-    src="$KERNEL_OUT/modules/lib/modules/$krel"
+    krel="$KERNEL_RELEASE"
+    src="$INSTALLED_MODULES/lib/modules/$krel"
 
     dlkm="$MOD_STAGE/vendor_dlkm"
     mods_dir="$dlkm/lib/modules"
@@ -128,9 +130,6 @@ EOF
 }
 
 build_module() {
-    # Only needed for device module packaging.
-    validate_deps modules
-
     reset_dir "$MOD_FLAT"
     reset_dir "$MOD_STAGE"
 

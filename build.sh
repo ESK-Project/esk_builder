@@ -1,127 +1,93 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1091
-
-#
-# Personal ESK Kernel build script
-#
-
 set -Eeuo pipefail
 
-# Workspace
 WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-source "$WORKSPACE/config.sh"
-source "$WORKSPACE/build/all.sh"
-source "$WORKSPACE/ci/all.sh"
-
-# Error handling
-trap 'error "Build failed at line $LINENO: $BASH_COMMAND"' ERR
-
-################################################################################
-# Main
-################################################################################
+source "$WORKSPACE/scripts/common.sh"
+source "$WORKSPACE/scripts/sources.sh"
+source "$WORKSPACE/scripts/toolchain.sh"
+source "$WORKSPACE/scripts/configure.sh"
+source "$WORKSPACE/scripts/compile.sh"
+source "$WORKSPACE/scripts/modules.sh"
+source "$WORKSPACE/scripts/package.sh"
+source "$WORKSPACE/scripts/notify.sh"
 
 count() {
     ((++STEP))
+    BUILD_STAGE="$1"
     "$@"
 }
 
 validate_env() {
-    local stage="$1"
-
-    case "$stage" in
-        github)
-            # before fetching github release assets
-            if [[ -z ${GH_TOKEN:-} ]]; then
-                if [[ -x "$CLANG_BIN/clang" && -f "$LIBFAKESTAT" ]]; then
-                    :
-                elif is_ci; then
-                    error "Required Github PAT missing: GH_TOKEN"
-                else
-                    warn "GH_TOKEN isn't set, requests may be rate-limited."
-                fi
-            fi
-            ;;
-        telegram)
-            # before sending telegram updates
-            if is_true "$TG_NOTIFY"; then
-                : "${TG_BOT_TOKEN:?Required Telegram Bot Token missing: TG_BOT_TOKEN}"
-                : "${TG_CHAT_ID:?Required chat ID missing: TG_CHAT_ID}"
-                export TG_BOT_TOKEN
-                export TG_CHAT_ID
-            fi
-            ;;
-        config)
-            # before build prep
-            if is_true "$SUSFS" && ! is_true "$KSU"; then
-                error "Cannot use SUSFS without KernelSU"
-            fi
-
-            if is_true "$LXC" && { ! is_device_target || ! is_true "$DEVICE_LXC_SUPPORTED"; }; then
-                error "LXC is not supported for $TARGET_NAME"
-            fi
-            ;;
-        *)
-            fatal "Unknown environment validation stage: $stage"
-            ;;
-    esac
+    if is_true "$TG_NOTIFY"; then
+        : "${TG_BOT_TOKEN:?TG_BOT_TOKEN is required when notifications are enabled}"
+        : "${TG_CHAT_ID:?TG_CHAT_ID is required when notifications are enabled}"
+    fi
 }
 
 validate_deps() {
-    local stage="$1"
+    local status=0
+    require_cmds bash make git curl aria2c patch zip zstd tar xz depmod \
+        llvm-strip bc bison flex hexdump python3 uv sha256sum || status=1
+    if is_true "$CCACHE_ENABLED"; then
+        require_cmds ccache || status=1
+    fi
+    # also find /lib64 since fedora use it
+    LIBFAKETIME="$(find /usr/lib /lib /usr/lib64 /usr/lib64 -name libfaketimeMT.so.1 -print -quit 2> /dev/null || true)"
+    if [[ ! -f $LIBFAKETIME ]]; then
+        fatal "libfaketimeMT.so.1 is missing. Install libfaketime" || status=1
+    fi
+    export LIBFAKETIME
+    return "$status"
+}
 
-    case "$stage" in
-        base)
-            # before the build starts
-            require_cmds \
-                aria2c bash ccache chmod cp curl date find git head hexdump make mkdir \
-                python3 rm sed sha256sum sort tar tee uv zip zstd
-            ;;
-        patching)
-            # before applying patches
-            require_cmds patch
-            ;;
-        modules)
-            # before device module packaging
-            require_cmds depmod llvm-strip xz
-            ;;
-        bootimg)
-            # before generic boot image packaging
-            require_cmds gzip lz4 unzip
-            ;;
-        *)
-            fatal "Unknown dependency validation stage: $stage"
-            ;;
-    esac
+prepare_output() {
+    reset_dir "$OUT_DIR"
+}
+
+init_build() {
+    step "Init build"
+    BUILD_TAG="kernel_$(hexdump -v -e '/1 "%02x"' -n4 /dev/urandom)"
+    export BUILD_TAG KBUILD_BUILD_USER KBUILD_BUILD_HOST
+    BUILDER_COMMIT="$(git -C "$WORKSPACE" rev-parse HEAD)"
+    export BUILDER_COMMIT
+    MAKE_ARGS=(-j"$JOBS" O="$KERNEL_OUT" ARCH=arm64
+        CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LD="$WRAPPER_DIR/ld.lld")
+}
+
+prepare_dirs() {
+    step "Prepare directories"
+    reset_dir "$STAGING"
+    if is_true "$RESET_SOURCES"; then
+        reset_dir "$SOURCE_DIR"
+    fi
+    mkdir -p "$SOURCE_DIR" "$KERNEL_OUT" "$MOD_FLAT" "$MOD_STAGE"
 }
 
 main() {
-    SECONDS=0
-    STEP=0
-
-    count init_build
+    : "${TARGET_NAME:?Use the Python CLI: uv run esk build}"
+    SECONDS=0 STEP=0
+    validate_deps
+    validate_env
+    count prepare_output
     count init_logging
-    count send_start_msg
+    trap 'error "Build failed in $BUILD_STAGE at line $LINENO: $BASH_COMMAND (log: $LOGFILE)"' ERR
+    count init_build
     count prepare_dirs
+    count send_start_msg
     count fetch_sources
     count setup_toolchain
+    count setup_ld_preload
+    count setup_ccache
     count prepare_build
     count build_kernel
-    if is_device_target; then
-        count build_module
-    fi
-
-    prepare_package_name
-
-    # Build flashable package
+    count build_module
+    count prepare_package_name
     count package_anykernel "$PACKAGE_NAME"
-    count package_bootimg "$PACKAGE_NAME"
-
-    # Github Actions metadata
-    count write_metadata "$PACKAGE_NAME"
-
-    local build_time="$SECONDS"
-    count finalize_build "$build_time" "$PACKAGE_NAME"
+    count write_metadata
+    count finalize_build "$SECONDS" "$PACKAGE_NAME"
 }
 
-main "$@"
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    main "$@"
+fi

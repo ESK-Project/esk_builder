@@ -16,16 +16,21 @@ class GitHubRelease(BaseModel):
 
 
 class MetadataPayload(BaseModel):
+    target: str
+    preset: str
     kernel_version: str
     kernel_name: str
+    kernel_commit: str
+    kernel_url: str
+    builder_commit: str
     toolchain: str
     package_name: str
     variant: str
-    name: str
-    out_dir: str
-    release_repo: str
-    release_branch: str
-    kernel_commit: str
+    ksu_commit: str | None
+    susfs_commit: str | None
+    features: dict[str, bool]
+    compile_seconds: int
+    artifacts: dict[str, str]
 
 
 class TelegramResponse(BaseModel):
@@ -47,15 +52,3 @@ class TelegramDocumentRequest(BaseModel):
     parse_mode: str = "MarkdownV2"
     disable_web_page_preview: str = "true"
     caption: str
-
-
-class TelegramMediaDocument(BaseModel):
-    type: str = "document"
-    media: str
-    caption: str | None = None
-    parse_mode: str | None = None
-
-
-class TelegramMediaGroupRequest(BaseModel):
-    chat_id: str
-    media: list[TelegramMediaDocument]

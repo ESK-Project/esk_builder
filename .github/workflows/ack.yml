@@ -130,6 +130,7 @@ jobs:
         if: steps.build.outcome == 'success' && inputs.action == 'build'
         run: tar -I 'zstd -T0 -3' -cf sources/out/modules.tar.zst -C sources/out modules
       - name: Package AnyKernel3
+        id: package
         if: steps.build.outcome == 'success' && inputs.action == 'build'
         env:
           TARGET: ${{ inputs.target }}
@@ -145,6 +146,15 @@ jobs:
         with:
           path: .ccache/ack
           key: ack-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload AnyKernel3
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: xaga-ack-ak3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: sources/out/ak3/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
       - name: Upload build logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
@@ -177,4 +187,3 @@ jobs:
             sources/out/arch/arm64/boot/Image.gz
             sources/out/dt/
             sources/out/modules.tar.zst
-            sources/out/ak3/*.zip

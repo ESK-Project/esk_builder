@@ -23,9 +23,5 @@ jobs:
       - run: just check
       - name: Check ACK packaging
         run: uv run --locked python -m unittest discover -s tests -p test_ack_package.py
-      - name: Validate presets
-        run: |
-          for preset in vnl ksu ksu-susfs; do
-            uv run --locked esk build xaga --preset "$preset" --dry-run > /dev/null
-          done
-          uv run --locked esk profile xaga-6.12 > /dev/null
+      - name: Validate target
+        run: uv run --locked esk profile xaga-6.12 > /dev/null

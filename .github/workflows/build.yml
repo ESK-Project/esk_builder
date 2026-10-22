@@ -2,87 +2,44 @@ name: Build kernel
 on:
   workflow_dispatch:
     inputs:
-      layout:
-        description: Build layout
-        type: choice
-        options: [ack, gki]
-        default: ack
+      target:
+        description: Target profile
+        type: string
+        default: xaga-6.12
+      kernel_ref:
+        description: Kernel ref (empty uses target profile)
+        type: string
+        default: ""
       modules_ref:
-        description: ACK modules ref (empty uses target profile)
+        description: Modules ref (empty uses target profile)
         type: string
         default: ""
       action:
-        description: ACK build stage
+        description: Build stage
         type: choice
         options: [build, configure, check]
         default: build
-      target:
-        description: Target name (empty uses builder.toml)
-        type: string
-        default: ""
-      preset:
-        description: Build preset
-        type: string
-        default: vnl
-      kernel_ref:
-        description: Kernel branch, tag, or commit (empty uses target config)
-        type: string
-        default: ""
-      stock_config:
-        description: Stock configuration
-        type: choice
-        default: auto
-        options: [auto, 'true', 'false']
-      notify:
-        description: Upload to Telegram
-        type: boolean
-        default: false
   workflow_call:
     inputs:
-      layout:
+      target:
         type: string
-        default: gki
+        default: xaga-6.12
+      kernel_ref:
+        type: string
+        default: ""
       modules_ref:
         type: string
         default: ""
       action:
         type: string
         default: build
-      target:
-        type: string
-        default: ""
-      preset:
-        type: string
-        default: vnl
-      kernel_ref:
-        type: string
-        default: ""
-      stock_config:
-        type: string
-        default: auto
-      notify:
-        type: boolean
-        default: false
     secrets:
       SOURCE_READ_TOKEN:
         required: false
-      GH_TOKEN:
-        required: false
-      TG_BOT_TOKEN:
-        required: false
-      TG_CHAT_ID:
-        required: false
-
 permissions:
   contents: read
-
-env:
-  DEBIAN_FRONTEND: noninteractive
-  TERM: xterm-256color
-
 jobs:
-  ack:
-    if: ${{ inputs.layout != 'gki' }}
+  build:
     uses: ./.github/workflows/ack.yml
     with:
       target: ${{ inputs.target || 'xaga-6.12' }}
@@ -91,126 +48,3 @@ jobs:
       action: ${{ inputs.action || 'build' }}
     secrets:
       SOURCE_READ_TOKEN: ${{ secrets.SOURCE_READ_TOKEN }}
-
-  build:
-    if: ${{ inputs.layout == 'gki' }}
-    runs-on: ubuntu-latest
-    env:
-      TARGET: ${{ inputs.target }}
-      PRESET: ${{ inputs.preset }}
-      KERNEL_REF_INPUT: ${{ inputs.kernel_ref }}
-      STOCK_CONFIG_INPUT: ${{ inputs.stock_config }}
-      NOTIFY: ${{ inputs.notify }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-    steps:
-      - uses: actions/checkout@v6.0.1
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: '3.14'
-
-      - uses: astral-sh/setup-uv@v8.1.0
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq aria2 bc bison bsdextrautils build-essential ccache curl \
-            flex git kmod libfaketime llvm patch tar xz-utils zip zstd
-          uv sync --locked --no-dev
-
-      - name: Resolve build settings
-        id: settings
-        run: |
-          args=(build)
-
-          if [[ -n "$TARGET" ]]; then
-            args+=("$TARGET")
-          fi
-
-          args+=(--preset "$PRESET")
-          args+=(--stock-config "$STOCK_CONFIG_INPUT")
-
-          if [[ -n "$KERNEL_REF_INPUT" ]]; then
-            args+=(--kernel-ref "$KERNEL_REF_INPUT")
-          fi
-
-          if [[ "$NOTIFY" == "true" ]]; then
-            args+=(--notify)
-          else
-            args+=(--no-notify)
-          fi
-
-          # Save arguments for the build step.
-          printf '%s\0' "${args[@]}" > "$RUNNER_TEMP/esk-args"
-
-          # Resolve settings without starting a build.
-          uv run --locked esk "${args[@]}" --dry-run \
-            > "$RUNNER_TEMP/esk-settings.json"
-
-          # Export resolved settings to GitHub Actions.
-          jq -r '
-            "target=\(.TARGET_NAME)",
-            "preset=\(.PRESET)",
-            "out_dir=\(.OUT_DIR)",
-            "cache_dir=\(.CCACHE_DIR)",
-            "cache_enabled=\(.CCACHE_ENABLED)"
-          ' "$RUNNER_TEMP/esk-settings.json" >> "$GITHUB_OUTPUT"
-
-          echo "CACHE_RESTORE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Restore compiler cache
-        id: cache
-        if: steps.settings.outputs.cache_enabled == 'true'
-        uses: actions/cache/restore@v5.0.3
-        continue-on-error: true
-        with:
-          path: ${{ steps.settings.outputs.cache_dir }}
-          key: ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-
-            ccache-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.settings.outputs.target }}-
-
-      - name: Build
-        id: build
-        env:
-          OUT_DIR: ${{ steps.settings.outputs.out_dir }}
-        run: |
-          echo "Cache restore: $(($(date +%s) - CACHE_RESTORE_STARTED))s" >> "$GITHUB_STEP_SUMMARY"
-          mapfile -d '' -t args < "$RUNNER_TEMP/esk-args"
-          status=0
-          uv run --locked esk "${args[@]}" || status=$?
-          if [[ -f "$OUT_DIR/compiled" ]]; then echo 'compiled=true' >> "$GITHUB_OUTPUT"; fi
-          exit "$status"
-
-      - name: Start cache save timing
-        if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
-        run: echo "CACHE_SAVE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Save compiler cache
-        if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
-        uses: actions/cache/save@v5.0.3
-        continue-on-error: true
-        with:
-          path: ${{ steps.settings.outputs.cache_dir }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-
-      - name: Build summary
-        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
-        env:
-          OUT_DIR: ${{ steps.settings.outputs.out_dir }}
-        run: |
-          if [[ -n "${CACHE_SAVE_STARTED:-}" ]]; then
-            echo "Cache save: $(($(date +%s) - CACHE_SAVE_STARTED))s" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [[ -f "$OUT_DIR/ccache-stats.txt" ]]; then
-            cat "$OUT_DIR/ccache-stats.txt" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload packages and logs
-        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ steps.settings.outputs.out_dir }}/
-          compression-level: 0
-          if-no-files-found: warn

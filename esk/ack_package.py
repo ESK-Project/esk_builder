@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import load_target
 
+# Adapted from https://github.com/RengokuSensei/android_kernel_modules_xiaomi_mt6895-6.12/blob/main/build.sh
 PROBE_DEPENDENCIES = {
     "mtu3.ko": ("xhci-mtk-hcd-v2.ko", "xhci-mtk-hcd.ko"),
     "mt6375-charger.ko": ("mtu3.ko",),

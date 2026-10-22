@@ -151,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: xaga-ack-ak3-${{ github.run_id }}-${{ github.run_attempt }}
-          path: sources/out/ak3/*.zip
+          path: sources/out/ak3/ESK-${{ inputs.target }}-xaga-*-AnyKernel3.zip
           if-no-files-found: error
           compression-level: 0
           retention-days: 7

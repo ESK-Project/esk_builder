@@ -110,7 +110,7 @@ def package_ack(workspace: Path, target: str, out: Path, anykernel: Path) -> lis
         with gzip.open(out / "arch/arm64/boot/Image.gz", "rb") as source:
             with (kernel / "Image").open("wb") as image:
                 shutil.copyfileobj(source, image)
-        for board in ("xaga", "xaga_global"):
+        for board in ("xaga",):
             ak3 = stage / board
             shutil.copytree(
                 anykernel,

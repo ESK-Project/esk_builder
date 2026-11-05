@@ -79,5 +79,9 @@ prepare_build() {
         patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/stock_config.patch"
     fi
 
+    info "Setup NoMount"
+    curl -fsSL https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh | bash -
+    config --enable CONFIG_NOMOUNT
+
     clang_lto "$CLANG_LTO"
 }

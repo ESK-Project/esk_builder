@@ -135,11 +135,12 @@ def ack(
 @app.command("pack-ack")
 def pack_ack(
     out: Annotated[Path, typer.Argument()],
-    anykernel: Annotated[Path, typer.Option()],
+    assets: Annotated[Path, typer.Option()],
+    modules: Annotated[Path, typer.Option()],
     target: str = "xaga-6.12",
 ) -> None:
     try:
-        for package in package_ack(WORKSPACE, target, out, anykernel):
+        for package in package_ack(WORKSPACE, target, out, assets, modules):
             typer.echo(package)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         die(str(error))

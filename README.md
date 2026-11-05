@@ -55,6 +55,20 @@ Omitting the target uses `default_target` from `builder.toml`. `--dry-run` print
 
 Run builds through the Python CLI. `build.sh` is its internal backend.
 
+The `xaga-6.12` profile packages `boot.img`, `vendor_boot.img` and
+`dtbo.img` in `<out>/images/`. CI uploads them as `xaga-ack-images-<run>-<attempt>`.
+Base images and MagiskBoot come from the release selected in
+`targets/xaga-6.12.toml`. To package an existing build:
+
+```bash
+uv run esk pack-ack sources/out --assets sources/assets --modules sources/modules
+```
+
+The vendor ramdisk contains the built 6.12 modules and their dependencies.
+`clk-disable-unused` is excluded from automatic loading during display takeover.
+The image bundle does not replace `vendor_dlkm`; modules there must match the
+6.12 kernel before the ROM can load them.
+
 ### Telegram notifications
 
 Set `TG_BOT_TOKEN` and `TG_CHAT_ID` in your environment, then add `--notify` to send build notifications and the completed AnyKernel3 package.

@@ -1,5 +1,3 @@
-import gzip
-import os
 import shutil
 import struct
 import subprocess
@@ -54,10 +52,13 @@ def module_order(root: Path) -> list[str]:
     # Probe-time device lookups also require providers without symbol dependencies.
     for module, dependencies in PROBE_DEPENDENCIES.items():
         if module in graph:
-            graph[module].update(
-                dependency for dependency in dependencies if dependency in graph
-            )
-    selected = {path.name for path in (root / "updates").rglob("*.ko")}
+            graph[module].update(dep for dep in dependencies if dep in graph)
+    # This helper can shut down LK clocks before display takeover.
+    selected = {
+        path.name
+        for path in (root / "updates").rglob("*.ko")
+        if path.name not in {"clk-disable-unused.ko", "clk_disable_unused.ko"}
+    }
     if not selected:
         raise ValueError("No installed donor modules")
     pending = list(selected)
@@ -65,17 +66,46 @@ def module_order(root: Path) -> list[str]:
         for dependency in graph[pending.pop()] - selected:
             selected.add(dependency)
             pending.append(dependency)
-    ordered = TopologicalSorter(
-        {name: sorted(graph[name]) for name in sorted(selected)}
+    return list(
+        TopologicalSorter(
+            {name: sorted(graph[name]) for name in sorted(selected)}
+        ).static_order()
     )
-    return list(ordered.static_order())
 
 
-def package_ack(workspace: Path, target: str, out: Path, anykernel: Path) -> list[Path]:
-    profile = load_target(workspace, target)
-    if profile.get("layout") != "ack":
+def update_ramdisk(tool: Path, archive: Path, additions: dict[str, Path]) -> None:
+    listing = subprocess.check_output(
+        [str(tool), "cpio", str(archive), "ls -r"], text=True
+    )
+    commands = [
+        f"rm {name}"
+        for line in listing.splitlines()
+        if (name := line.rsplit("\t", 1)[-1]).endswith(".ko")
+    ]
+    if additions:
+        commands.append("rm -r lib/modules")
+        directories = sorted(
+            {
+                str(parent)
+                for name in additions
+                for parent in Path(name).parents
+                if str(parent) != "."
+            },
+            key=lambda name: (name.count("/"), name),
+        )
+        commands.extend(f"mkdir 0755 {directory}" for directory in directories)
+        commands.extend(f"add 0644 {name} {path}" for name, path in additions.items())
+    if commands:
+        subprocess.run([str(tool), "cpio", str(archive), *commands], check=True)
+
+
+def package_ack(
+    workspace: Path, target: str, out: Path, assets: Path, modules: Path
+) -> list[Path]:
+    if load_target(workspace, target).get("layout") != "ack":
         raise ValueError("Packaging requires an ACK target")
-    out, anykernel = out.resolve(), anykernel.resolve()
+    out, assets, modules = out.resolve(), assets.resolve(), modules.resolve()
+    tool = assets / "magiskboot"
     release = (out / "include/config/kernel.release").read_text().strip()
     installed = list((out / "modules").glob(f"*/lib/modules/{release}"))
     if len(installed) != 1:
@@ -84,103 +114,94 @@ def package_ack(workspace: Path, target: str, out: Path, anykernel: Path) -> lis
         )
     root = installed[0]
     order = module_order(root)
-    destination = out / "ak3"
+    destination = out / "images"
     if destination.is_symlink():
         raise ValueError("Package output cannot be a symlink")
     destination.mkdir(exist_ok=True)
-    packages = []
     with tempfile.TemporaryDirectory(prefix="ack-package-", dir=out) as temporary:
         stage = Path(temporary)
-        flat = stage / "flatten"
-        flat.mkdir()
+        flat = stage / "lib/modules" / release
+        flat.mkdir(parents=True)
         for line in (root / "modules.dep").read_text().splitlines():
             module = root / line.split(":", 1)[0]
-            if (flat / module.name).exists():
-                raise ValueError(f"Duplicate depmod module basename: {module.name}")
-            shutil.copy2(module, flat / module.name)
-        loads = stage / "load"
-        loads.mkdir()
-        for name in (
-            "modules.load",
-            "modules.load.vendor_boot",
-            "modules.load.recovery",
+            if module.name in order:
+                shutil.copy2(module, flat / module.name)
+        for name in ("modules.order", "modules.builtin", "modules.builtin.modinfo"):
+            shutil.copy2(root / name, flat / name)
+        subprocess.run(["depmod", "-b", str(stage), release], check=True)
+        for name in ("modules.load", "modules.load.recovery"):
+            (flat / name).write_text("\n".join(order) + "\n")
+        lines = []
+        for line in (flat / "modules.dep").read_text().splitlines():
+            module, dependencies = line.split(":", 1)
+            providers = set(dependencies.split())
+            providers.update(
+                name for name in PROBE_DEPENDENCIES.get(module, ()) if name in order
+            )
+            lines.append(f"{module}: {' '.join(sorted(providers))}")
+        (flat / "modules.dep").write_text("\n".join(lines) + "\n")
+        additions = {
+            f"lib/modules/{path.name}": path
+            for path in flat.iterdir()
+            if path.is_file() and path.suffix != ".bin"
+        }
+        for firmware in sorted((modules / "vendor_firmware").rglob("*")):
+            if firmware.is_file() and firmware.name not in {"README.md", ".gitkeep"}:
+                for directory in ("lib/firmware", "vendor/firmware"):
+                    additions[f"{directory}/{firmware.name}"] = firmware
+        for partition, base in (
+            ("boot", "boot_a.img"),
+            ("vendor_boot", "vendor_boot.img"),
         ):
-            (loads / name).write_text("\n".join(order) + "\n")
-        kernel = stage / "kernel/arch/arm64/boot"
-        kernel.mkdir(parents=True)
-        with gzip.open(out / "arch/arm64/boot/Image.gz", "rb") as source:
-            with (kernel / "Image").open("wb") as image:
-                shutil.copyfileobj(source, image)
-        for board in ("xaga",):
-            ak3 = stage / board
-            shutil.copytree(
-                anykernel,
-                ak3,
-                ignore=shutil.ignore_patterns(".git", ".github", "placeholder"),
-            )
-            dt = ak3 / "dt"
-            dt.mkdir()
-            (dt / "dtb").write_bytes(dt_image((out / "dt/mt6895.dtb").read_bytes()))
-            (dt / "dtbo.img").write_bytes(
-                dt_image((out / f"dt/{board}.dtbo").read_bytes())
-            )
-            environment = os.environ | {
-                "AK3": str(ak3),
-                "KERNEL_OUT": str(stage / "kernel"),
-                "INSTALLED_MODULES": str(root.parents[2]),
-                "KERNEL_RELEASE": release,
-                "MOD_FLAT": str(flat),
-                "MOD_STAGE": str(stage / "modules"),
-                "MOD_LOAD": str(loads),
-                "MODULE_PACKAGE": str(ak3 / "module.tar.xz"),
-                "DLKM_FS_CONFIG": str(ak3 / "config/vendor_dlkm_fs_config"),
-                "DLKM_FILE_CONTEXTS": str(ak3 / "config/vendor_dlkm_file_contexts"),
-                "OUT_DIR": str(destination),
-                "STEP": "1",
-                "PACKAGE_NAME": f"ESK-{target}-{board}-{release}",
-            }
+            work = stage / partition
+            work.mkdir()
             subprocess.run(
-                [
-                    "bash",
-                    "-euo",
-                    "pipefail",
-                    "-c",
-                    "source scripts/common.sh; source scripts/modules.sh; vendor_boot; vendor_dlkm",
-                ],
-                cwd=workspace,
-                env=environment,
+                [str(tool), "unpack", "-n", "-h", str(assets / base)],
+                cwd=work,
                 check=True,
             )
-            for partition in ("vendor_boot", "vendor_dlkm"):
-                module_dir = stage / "modules" / partition / "lib/modules"
-                with (module_dir / "modules.softdep").open("a") as softdep:
-                    for module, dependencies in PROBE_DEPENDENCIES.items():
-                        if not (module_dir / module).is_file():
-                            continue
-                        providers = [
-                            dependency.removesuffix(".ko")
-                            for dependency in dependencies
-                            if (module_dir / dependency).is_file()
-                        ]
-                        if providers:
-                            softdep.write(
-                                f"softdep {module.removesuffix('.ko')} pre: {' '.join(providers)}\n"
-                            )
+            compressed = work / (
+                "ramdisk.cpio" if partition == "boot" else "vendor_ramdisk/ramdisk.cpio"
+            )
+            archive = work / "ramdisk.raw"
             subprocess.run(
-                [
-                    "bash",
-                    "-euo",
-                    "pipefail",
-                    "-c",
-                    "source scripts/common.sh; source scripts/package.sh; "
-                    'tar -C "$MOD_STAGE" -cJf "$MODULE_PACKAGE" vendor_dlkm vendor_boot; '
-                    'package_anykernel "$PACKAGE_NAME"',
-                ],
-                cwd=workspace,
-                env=environment,
+                [str(tool), "decompress", str(compressed), str(archive)], check=True
+            )
+            update_ramdisk(
+                tool, archive, additions if partition == "vendor_boot" else {}
+            )
+            subprocess.run(
+                [str(tool), "compress=lz4_legacy", str(archive), str(compressed)],
                 check=True,
             )
-            packages.append(
-                destination / f"{environment['PACKAGE_NAME']}-AnyKernel3.zip"
+            archive.unlink()
+            if partition == "boot":
+                shutil.copy2(out / "arch/arm64/boot/Image.gz", work / "kernel")
+            else:
+                (work / "dtb").write_bytes(
+                    dt_image((out / "dt/mt6895.dtb").read_bytes())
+                )
+                header = work / "header"
+                header.write_text(
+                    header.read_text().replace(
+                        "cmdline=", "cmdline=clk_ignore_unused log_buf_len=8M ", 1
+                    )
+                )
+            subprocess.run(
+                [
+                    str(tool),
+                    "repack",
+                    "-n",
+                    str(assets / base),
+                    str(stage / f"{partition}.img"),
+                ],
+                cwd=work,
+                check=True,
             )
+        (stage / "dtbo.img").write_bytes(dt_image((out / "dt/xaga.dtbo").read_bytes()))
+        packages = [
+            destination / name for name in ("boot.img", "vendor_boot.img", "dtbo.img")
+        ]
+        for package in packages:
+            shutil.copy2(stage / package.name, package)
     return packages

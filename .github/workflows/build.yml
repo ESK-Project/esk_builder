@@ -70,12 +70,12 @@ jobs:
       TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
       TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
     steps:
-      - uses: actions/checkout@v6.0.1
-      - uses: actions/setup-python@v6.2.0
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
 
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
@@ -121,7 +121,7 @@ jobs:
       - name: Restore compiler cache
         id: cache
         if: steps.settings.outputs.cache_enabled == 'true'
-        uses: actions/cache/restore@v5.0.3
+        uses: actions/cache/restore@v6.1.0
         continue-on-error: true
         with:
           path: ${{ steps.settings.outputs.cache_dir }}
@@ -146,7 +146,7 @@ jobs:
       - name: Upload packages and logs
         id: artifact
         if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.settings.outputs.out_dir }}/
@@ -155,7 +155,7 @@ jobs:
 
       - name: Save compiler cache
         if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
-        uses: actions/cache/save@v5.0.3
+        uses: actions/cache/save@v6.1.0
         continue-on-error: true
         with:
           path: ${{ steps.settings.outputs.cache_dir }}

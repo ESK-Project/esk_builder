@@ -3,13 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Target name (empty uses builder.toml)
-        type: string
-        default: ""
+        description: Device
+        type: choice
+        default: xaga
+        options: [xaga, plato]
       preset:
-        description: Build preset
-        type: string
+        description: Variant
+        type: choice
         default: vnl
+        options: [vnl, ksu, ksu-susfs]
       kernel_ref:
         description: Kernel branch, tag, or commit (empty uses target config)
         type: string
@@ -116,8 +118,6 @@ jobs:
             "cache_enabled=\(.CCACHE_ENABLED)"
           ' "$RUNNER_TEMP/esk-settings.json" >> "$GITHUB_OUTPUT"
 
-          echo "CACHE_RESTORE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
-
       - name: Restore compiler cache
         id: cache
         if: steps.settings.outputs.cache_enabled == 'true'
@@ -135,7 +135,6 @@ jobs:
         env:
           OUT_DIR: ${{ steps.settings.outputs.out_dir }}
         run: |
-          echo "Cache restore: $(($(date +%s) - CACHE_RESTORE_STARTED))s" >> "$GITHUB_STEP_SUMMARY"
           mapfile -d '' -t args < "$RUNNER_TEMP/esk-args"
           status=0
           uv run --locked esk build "${args[@]}" || status=$?
@@ -144,9 +143,15 @@ jobs:
           fi
           exit "$status"
 
-      - name: Start cache save timing
-        if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
-        run: echo "CACHE_SAVE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Upload packages and logs
+        id: artifact
+        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.settings.outputs.out_dir }}/
+          compression-level: 0
+          if-no-files-found: warn
 
       - name: Save compiler cache
         if: ${{ !cancelled() && steps.build.outputs.compiled == 'true' && steps.settings.outputs.cache_enabled == 'true' }}
@@ -159,20 +164,35 @@ jobs:
       - name: Build summary
         if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
         env:
+          BUILD_TARGET: ${{ steps.settings.outputs.target }}
+          BUILD_PRESET: ${{ steps.settings.outputs.preset }}
+          BUILD_STATUS: ${{ steps.build.outcome }}
           OUT_DIR: ${{ steps.settings.outputs.out_dir }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
-          if [[ -n "${CACHE_SAVE_STARTED:-}" ]]; then
-            echo "Cache save: $(($(date +%s) - CACHE_SAVE_STARTED))s" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [[ -f "$OUT_DIR/ccache-stats.txt" ]]; then
-            cat "$OUT_DIR/ccache-stats.txt" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            cat <<EOF
+          ### $BUILD_TARGET / $BUILD_PRESET
 
-      - name: Upload packages and logs
-        if: ${{ !cancelled() && steps.settings.outcome == 'success' }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ steps.settings.outputs.out_dir }}/
-          compression-level: 0
-          if-no-files-found: warn
+          - **Build status** $BUILD_STATUS
+          EOF
+
+            if [[ -f "$OUT_DIR/build.json" ]]; then
+              jq -r '
+                "- **Kernel version** \(.kernel_version)",
+                "- **Kernel commit** [\(.kernel_commit[:12])](\(.kernel_url)/commit/\(.kernel_commit))",
+                "- **Compiler** \(.toolchain)",
+                "- **Compile time** \(.compile_seconds / 60 | floor)m \(.compile_seconds % 60)s"
+              ' "$OUT_DIR/build.json"
+            fi
+
+            if [[ -n "$ARTIFACT_URL" ]]; then
+              printf '\n[Download build artifact](%s)\n' "$ARTIFACT_URL"
+            fi
+
+            if [[ -f "$OUT_DIR/ccache-stats.txt" ]]; then
+              printf '\n%s\n\n%s\n' '#### ccache statistics' '```text'
+              cat "$OUT_DIR/ccache-stats.txt"
+              printf '%s\n' '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

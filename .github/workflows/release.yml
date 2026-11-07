@@ -1,0 +1,130 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Device
+        type: choice
+        default: xaga
+        options: [xaga, plato]
+      create_release:
+        description: Create prerelease
+        type: boolean
+        default: true
+      tag:
+        description: Release tag (vN.M, leave blank to auto-increment)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.preset }}
+    strategy:
+      matrix:
+        preset: [vnl, ksu, ksu-susfs]
+    uses: ./.github/workflows/build.yml
+    with:
+      target: ${{ inputs.target }}
+      preset: ${{ matrix.preset }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  release:
+    needs: build
+    if: inputs.create_release
+    runs-on: ubuntu-latest
+    concurrency: esk-release
+    steps:
+      - uses: actions/checkout@v6.0.1
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: actions/download-artifact@v7
+        with:
+          path: release_files
+
+      - name: Write release notes
+        id: notes
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          vnl_metadata=(release_files/"$TARGET-vnl-"*/build.json)
+          metadata="${vnl_metadata[0]}"
+          kernel_name="$(jq -er '.kernel_name' "$metadata")"
+          kernel_version="$(jq -er '.kernel_version' "$metadata")"
+          kernel_source="$(jq -er '.kernel_url + "/commit/" + .kernel_commit' "$metadata")"
+          toolchain="$(jq -er '.toolchain' "$metadata")"
+
+          cat > release-notes.md <<EOF
+          ### Build information
+
+          - **Kernel version** $kernel_version
+          - **Kernel commit** $kernel_source
+          - **Compiler** $toolchain
+          EOF
+
+          echo "kernel_name=$kernel_name" >> "$GITHUB_OUTPUT"
+
+      - name: Publish prerelease
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RELEASE_REPO: ESK-Project/esk-releases
+          RELEASE_TAG: ${{ inputs.tag }}
+          KERNEL_NAME: ${{ steps.notes.outputs.kernel_name }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -o pipefail
+          tag="$RELEASE_TAG"
+          if [[ -n "$tag" && ! "$tag" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must use the vN.M format"
+            exit 1
+          fi
+
+          if [[ -z "$tag" ]]; then
+            latest="$(gh api --paginate "repos/$RELEASE_REPO/tags" --jq '.[].name' \
+              | awk '/^v[0-9]+\.[0-9]+$/' | sort -V | tail -n 1)"
+            version="${latest:-v0.9}"
+            IFS=. read -r major minor <<< "${version#v}"
+            major=$((10#$major))
+            minor=$((10#$minor))
+            if (( minor >= 9 )); then
+              tag="v$((major + 1)).0"
+            else
+              tag="v$major.$((minor + 1))"
+            fi
+          fi
+
+          url="$(gh release create "$tag" release_files/*/*-AnyKernel3.zip \
+            --repo "$RELEASE_REPO" \
+            --target main \
+            --prerelease \
+            --title "$KERNEL_NAME Kernel $TARGET $tag" \
+            --notes-file release-notes.md)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Telegram
+        continue-on-error: true
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          RELEASE_URL: ${{ steps.publish.outputs.url }}
+          TARGET: ${{ inputs.target }}
+        if: env.TG_BOT_TOKEN != '' && env.TG_CHAT_ID != ''
+        run: |
+          uv run --locked --no-dev python - <<'PY'
+          import os
+
+          from esk.common import escape_md_v2
+          from esk.tg import send_message
+
+          target = os.environ["TARGET"]
+          url = os.environ["RELEASE_URL"]
+          send_message(escape_md_v2(f"Kernel release for {target}\n{url}"))
+          PY

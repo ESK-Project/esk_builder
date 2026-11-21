@@ -46,7 +46,6 @@ mmqos-mt6895.ko
 iommu_secure.ko
 iommu_debug.ko
 mtk_iommu.ko
-iommu_test.ko
 mtk_mm_heap.ko
 system_heap.ko
 mtk-cmdq-drv-ext.ko
@@ -197,7 +196,6 @@ mmqos-mt6895.ko
 iommu_secure.ko
 iommu_debug.ko
 mtk_iommu.ko
-iommu_test.ko
 mtk_mm_heap.ko
 system_heap.ko
 mtk-cmdq-drv-ext.ko

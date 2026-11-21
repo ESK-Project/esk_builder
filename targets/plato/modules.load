@@ -94,7 +94,6 @@ mtk-vmm-regulator.ko
 mtk-vow.ko
 mtk-scp-vow.ko
 cmdq-sec-drv.ko
-cmdq-test.ko
 btif_drv.ko
 connadp.ko
 connscp.ko
@@ -128,10 +127,7 @@ mtk-lpm-dbg-common-v1.ko
 mtk-lpm-plat-v1.ko
 mtk-lpm-dbg-mt6895.ko
 mtk-ssc.ko
-mtk-ssc-dbg-v2.ko
-mtk-vmm-dbg.ko
 mtk_qos.ko
-cpudvfs.ko
 mtk-dvfsrc-start.ko
 sspm_v3.ko
 hf_manager.ko
@@ -264,7 +260,6 @@ mtk-vmm-regulator.ko
 mtk-vow.ko
 mtk-scp-vow.ko
 cmdq-sec-drv.ko
-cmdq-test.ko
 btif_drv.ko
 connadp.ko
 connscp.ko
@@ -298,10 +293,7 @@ mtk-lpm-dbg-common-v1.ko
 mtk-lpm-plat-v1.ko
 mtk-lpm-dbg-mt6895.ko
 mtk-ssc.ko
-mtk-ssc-dbg-v2.ko
-mtk-vmm-dbg.ko
 mtk_qos.ko
-cpudvfs.ko
 mtk-dvfsrc-start.ko
 sspm_v3.ko
 hf_manager.ko

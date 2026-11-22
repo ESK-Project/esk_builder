@@ -21,6 +21,10 @@ on:
         type: choice
         default: auto
         options: [auto, 'true', 'false']
+      debug:
+        description: Enable performance debugging
+        type: boolean
+        default: false
       notify:
         description: Upload to Telegram
         type: boolean
@@ -39,6 +43,9 @@ on:
       stock_config:
         type: string
         default: auto
+      debug:
+        type: boolean
+        default: false
       notify:
         type: boolean
         default: false
@@ -65,6 +72,7 @@ jobs:
       PRESET: ${{ inputs.preset }}
       KERNEL_REF_INPUT: ${{ inputs.kernel_ref }}
       STOCK_CONFIG_INPUT: ${{ inputs.stock_config }}
+      DEBUG_INPUT: ${{ inputs.debug }}
       NOTIFY: ${{ inputs.notify }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -94,6 +102,10 @@ jobs:
 
           args+=(--preset "$PRESET")
           args+=(--stock-config "$STOCK_CONFIG_INPUT")
+
+          if [[ "$DEBUG_INPUT" == "true" ]]; then
+            args+=(--debug)
+          fi
 
           if [[ -n "$KERNEL_REF_INPUT" ]]; then
             args+=(--kernel-ref "$KERNEL_REF_INPUT")

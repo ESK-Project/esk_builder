@@ -27,7 +27,8 @@ def write_metadata(output: Path) -> None:
         ksu_commit=os.environ.get("KSU_COMMIT") if env("KSU") == "true" else None,
         susfs_commit=os.environ.get("SUSFS_COMMIT") if env("SUSFS") == "true" else None,
         features={
-            key: env(key.upper()) == "true" for key in ("ksu", "susfs", "stock_config")
+            key: env(key.upper()) == "true"
+            for key in ("ksu", "susfs", "stock_config", "debug")
         },
         compile_seconds=int(env("COMPILE_SECONDS")),
         artifacts=artifacts,

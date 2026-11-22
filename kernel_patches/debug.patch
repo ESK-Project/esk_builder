@@ -1,0 +1,25 @@
+diff --git a/arch/arm64/configs/vendor/xiaomi_mt6895.config b/arch/arm64/configs/vendor/xiaomi_mt6895.config
+index 7494b29d018a..4f04159ffb4f 100644
+--- a/arch/arm64/configs/vendor/xiaomi_mt6895.config
++++ b/arch/arm64/configs/vendor/xiaomi_mt6895.config
+@@ -429,13 +429,18 @@ CONFIG_MI_HARDWARE_ID=m
+ # CONFIG_KFENCE is not set
+ # CONFIG_PAGE_OWNER is not set
+ # CONFIG_DEBUG_MEMORY_INIT is not set
+-# CONFIG_SCHEDSTATS is not set
++CONFIG_SCHEDSTATS=y
+ # CONFIG_PRINTK_CALLER is not set
+ 
+ # CONFIG_SLUB_DEBUG is not set
+-# CONFIG_SCHED_DEBUG is not set
++CONFIG_SCHED_DEBUG=y
+ # CONFIG_DEBUG_LIST is not set
+ # CONFIG_CMA_DEBUGFS is not set
+ # CONFIG_TRACE_MMIO_ACCESS is not set
+ # CONFIG_DEBUG_INFO is not set
+ CONFIG_NONE_DEFAULT=y
++CONFIG_DEBUG_KERNEL=y
++CONFIG_DEBUG_FS=y
++CONFIG_FTRACE=y
++CONFIG_ENABLE_DEFAULT_TRACERS=y
++CONFIG_LRU_GEN_STATS=y

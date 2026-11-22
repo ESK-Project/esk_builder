@@ -28,6 +28,7 @@ class BuildSettings:
     jobs: int = field(default_factory=lambda: os.cpu_count() or 1)
     lto: str
     stock_config: bool
+    debug: bool
     ksu: bool
     susfs: bool
 

@@ -49,6 +49,7 @@ uv run esk build xaga --preset ksu
 uv run esk build xaga --preset ksu-susfs --jobs 8
 uv run esk build xaga --kernel-ref my-branch --stock-config false
 uv run esk build xaga --no-ccache
+uv run esk build xaga --debug
 uv run esk build xaga --reset-sources
 ```
 
@@ -91,6 +92,8 @@ CLI options > preset > target > project defaults
 Lists replace earlier lists. The preset controls KernelSU and SuSFS.
 
 `--stock-config auto` reads the target's `stock_config_default`, which is `false` for xaga. Pass `true` or `false` to override it.
+
+Use `--debug` to enable scheduler debugging, tracing, and MGLRU history. Scheduler statistics also need `sysctl -w kernel.sched_schedstats=1` at runtime.
 
 ### Forks and other devices
 
@@ -158,7 +161,7 @@ ccache --dir .ccache --show-stats
 
 ## GitHub Actions
 
-Run `build.yml` manually or call it as a reusable workflow. It accepts a target, preset, kernel-ref override, stock-config choice, and Telegram notification setting.
+Run `build.yml` manually or call it as a reusable workflow. It accepts a target, preset, kernel-ref override, stock-config choice, debug toggle, and Telegram notification setting.
 
 Each run builds one preset and uploads packages, metadata, and logs as an Actions artifact. Add repository secrets for the API and notification services you enable.
 

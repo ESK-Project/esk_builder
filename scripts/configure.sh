@@ -82,6 +82,7 @@ prepare_build() {
     if is_true "$DEBUG"; then
         info "Apply debug config patch"
         patch -s -p1 --no-backup-if-mismatch < "$KERNEL_PATCHES/debug.patch"
+        export LOCALVERSION="${LOCALVERSION:-}-debug"
     fi
 
     info "Setup NoMount"

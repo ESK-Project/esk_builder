@@ -65,6 +65,7 @@ jobs:
           VARIANTS: ${{ inputs.variants }}
           CREATE_RELEASE: ${{ inputs.create_release }}
           DEBUG: ${{ inputs.debug }}
+          KERNEL_REF: ${{ inputs.kernel_ref }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: python3 scripts/workflow.py plan
 
@@ -99,7 +100,7 @@ jobs:
     with:
       target: ${{ matrix.target }}
       preset: ${{ matrix.preset }}
-      kernel_ref: ${{ inputs.kernel_ref }}
+      kernel_ref: ${{ matrix.kernel_ref }}
       ksu_ref: ${{ inputs.ksu_ref }}
       stock_config: ${{ inputs.stock_config }}
       debug: ${{ inputs.debug }}

@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import tomllib
 from itertools import groupby
 from pathlib import Path
@@ -63,6 +64,34 @@ def select_builds(mode, devices, variants, available_devices, available_variants
     return selection
 
 
+def resolve_kernel_ref(url, ref):
+    if len(ref) == 40 and all(char in "0123456789abcdefABCDEF" for char in ref):
+        return ref.lower()
+    result = subprocess.run(
+        ["git", "ls-remote", "--exit-code", "--", url, ref, f"{ref}^{{}}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    refs = dict(line.split("\t", 1)[::-1] for line in result.stdout.splitlines())
+    names = [name for name in refs if not name.endswith("^{}")]
+    if len(names) != 1:
+        raise ValueError(f"Kernel ref is ambiguous: {ref}")
+    name = names[0]
+    return refs.get(f"{name}^{{}}", refs[name])
+
+
+def pin_kernel_refs(selection, override):
+    commits = {}
+    for item in selection:
+        with (ROOT / "targets" / f"{item['target']}.toml").open("rb") as handle:
+            target = tomllib.load(handle)
+        key = (target["kernel_url"], override or target["kernel_ref"])
+        if key not in commits:
+            commits[key] = resolve_kernel_ref(*key)
+        item["kernel_ref"] = commits[key]
+
+
 def append_outputs(values):
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
         for key, value in values.items():
@@ -89,6 +118,8 @@ def read_builds(selection, root, run_id, run_attempt):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if metadata["target"] != target or metadata["preset"] != preset:
             raise ValueError(f"Incorrect build metadata: {directory.name}")
+        if metadata["kernel_commit"] != item["kernel_ref"]:
+            raise ValueError(f"Incorrect kernel commit: {directory.name}")
 
         artifacts = metadata["artifacts"]
         packages = [name for name in artifacts if name.endswith("-AnyKernel3.zip")]
@@ -117,11 +148,13 @@ def write_plan_summary(selection, mode, version):
         "",
         f"Mode: {mode}",
         "",
-        "| Device | Variant |",
-        "| --- | --- |",
+        "| Device | Variant | Kernel commit |",
+        "| --- | --- | --- |",
     ]
     for item in selection:
-        lines.append(f"| {item['target']} | {item['preset']} |")
+        lines.append(
+            f"| {item['target']} | {item['preset']} | {item['kernel_ref'][:12]} |"
+        )
     if version:
         lines.extend(["", f"Release: {version}"])
     lines.append("")
@@ -202,20 +235,25 @@ def prepare_release(records, version):
         encoding="utf-8",
     )
 
+    commits = dict.fromkeys(
+        (build["kernel_url"], build["kernel_commit"]) for build in builds
+    )
+    commit_links = ", ".join(
+        f"[{commit[:12]}]({url.rstrip('/')}/commit/{commit})" for url, commit in commits
+    )
     lines = [
         "### Build information",
         "",
         f"ESK version: {version}",
+        f"Kernel commit: {commit_links}",
         "",
-        "| Device | Variant | Kernel version | Kernel commit | Compiler |",
-        "| --- | --- | --- | --- | --- |",
+        "| Device | Variant | Kernel version | Compiler |",
+        "| --- | --- | --- | --- |",
     ]
     for build in builds:
-        commit = build["kernel_commit"]
-        url = build["kernel_url"].rstrip("/")
         lines.append(
             f"| {build['target']} | {build['preset']} | {build['kernel_version']} | "
-            f"[{commit[:12]}]({url}/commit/{commit}) | {build['toolchain']} |"
+            f"{build['toolchain']} |"
         )
     lines.append("")
     Path("release-notes.md").write_text("\n".join(lines), encoding="utf-8")
@@ -252,6 +290,7 @@ def main():
         else:
             version = ""
 
+        pin_kernel_refs(selection, os.environ.get("KERNEL_REF", ""))
         append_outputs({"selected": json.dumps(selection, separators=(",", ":"))})
         write_plan_summary(selection, os.environ["MODE"], version)
         print("Selected builds:")
@@ -281,5 +320,11 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError) as error:
+    except (
+        ValueError,
+        OSError,
+        KeyError,
+        TypeError,
+        subprocess.CalledProcessError,
+    ) as error:
         raise SystemExit(str(error)) from error

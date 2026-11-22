@@ -11,7 +11,7 @@ on:
       devices:
         description: Devices for custom mode (comma-separated)
         type: string
-        default: ''
+        default: 'xaga,plato'
       variants:
         description: Variants for custom mode (comma-separated)
         type: string
@@ -44,7 +44,7 @@ on:
       prerelease:
         description: Mark release as prerelease
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read

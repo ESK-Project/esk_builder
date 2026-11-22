@@ -158,7 +158,7 @@ def package_component(value):
     return result
 
 
-def prepare_release(records, version, prerelease):
+def prepare_release(records, version):
     destination = Path("publish_files")
     if destination.exists():
         shutil.rmtree(destination)
@@ -194,7 +194,7 @@ def prepare_release(records, version, prerelease):
     manifest = {
         "schema_version": 1,
         "version": version,
-        "prerelease": prerelease,
+        "prerelease": True,
         "builds": builds,
     }
     (destination / "release.json").write_text(
@@ -242,7 +242,6 @@ def main():
         )
         release = os.environ["CREATE_RELEASE"] == "true"
         version = os.environ.get("RELEASE_TAG", "").strip()
-        prerelease = os.environ.get("PRERELEASE") == "true"
         if release:
             if not valid_version(version):
                 raise ValueError(
@@ -250,16 +249,10 @@ def main():
                 )
             if os.environ["DEBUG"] == "true":
                 raise ValueError("Debug builds cannot be published as release assets")
-            prerelease = prerelease or "-" in version
         else:
             version = ""
 
-        append_outputs(
-            {
-                "selected": json.dumps(selection, separators=(",", ":")),
-                "prerelease": str(prerelease).lower(),
-            }
-        )
+        append_outputs({"selected": json.dumps(selection, separators=(",", ":"))})
         write_plan_summary(selection, os.environ["MODE"], version)
         print("Selected builds:")
         for item in selection:
@@ -281,8 +274,7 @@ def main():
     version = os.environ["RELEASE_TAG"]
     if not valid_version(version):
         raise ValueError("Invalid release tag")
-    prerelease = os.environ["RELEASE_PRERELEASE"] == "true"
-    kernel_name = prepare_release(records, version, prerelease)
+    kernel_name = prepare_release(records, version)
     append_outputs({"kernel_name": kernel_name})
 
 

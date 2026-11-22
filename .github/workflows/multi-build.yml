@@ -41,10 +41,6 @@ on:
         description: Release tag (vN.M, vN.M.P or -rcN)
         type: string
         default: ''
-      prerelease:
-        description: Mark release as prerelease
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -55,7 +51,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       selected: ${{ steps.select.outputs.selected }}
-      prerelease: ${{ steps.select.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7.1.0
@@ -71,7 +66,6 @@ jobs:
           CREATE_RELEASE: ${{ inputs.create_release }}
           DEBUG: ${{ inputs.debug }}
           RELEASE_TAG: ${{ inputs.tag }}
-          PRERELEASE: ${{ inputs.prerelease }}
         run: python3 scripts/workflow.py plan
 
       - name: Check release tag
@@ -157,7 +151,6 @@ jobs:
           SELECTION: ${{ needs.plan.outputs.selected }}
           CREATE_RELEASE: ${{ inputs.create_release }}
           RELEASE_TAG: ${{ inputs.tag }}
-          RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
         run: python3 scripts/workflow.py notes
 
       - name: Publish
@@ -166,7 +159,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           RELEASE_REPO: ESK-Project/esk-releases
           RELEASE_TAG: ${{ inputs.tag }}
-          RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
           KERNEL_NAME: ${{ steps.notes.outputs.kernel_name }}
         run: |
           set -euo pipefail
@@ -177,15 +169,10 @@ jobs:
             exit 1
           fi
 
-          args=()
-          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
-            args+=(--prerelease)
-          fi
-
           url="$(gh release create "$RELEASE_TAG" publish_files/* \
             --repo "$RELEASE_REPO" \
             --target main \
-            "${args[@]}" \
+            --prerelease \
             --title "$KERNEL_NAME Kernel $RELEASE_TAG" \
             --notes-file release-notes.md)"
 

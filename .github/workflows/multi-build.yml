@@ -1,0 +1,225 @@
+name: Multi-variant Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Build selection
+        type: choice
+        default: full
+        options: [full, custom]
+      devices:
+        description: Devices for custom mode (comma-separated)
+        type: string
+        default: ''
+      variants:
+        description: Variants for custom mode (comma-separated)
+        type: string
+        default: vnl,ksu,ksu-susfs
+      kernel_ref:
+        description: Kernel branch, tag, or commit
+        type: string
+        default: ''
+      ksu_ref:
+        description: KernelSU branch, tag, or commit (empty uses preset)
+        type: string
+        default: ''
+      stock_config:
+        description: Stock configuration spoof
+        type: choice
+        default: auto
+        options: [auto, 'true', 'false']
+      debug:
+        description: Enable debug
+        type: boolean
+        default: false
+      create_release:
+        description: Create release
+        type: boolean
+        default: false
+      tag:
+        description: Release tag (vN.M, vN.M.P or -rcN)
+        type: string
+        default: ''
+      prerelease:
+        description: Mark release as prerelease
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan builds
+    runs-on: ubuntu-latest
+    outputs:
+      selected: ${{ steps.select.outputs.selected }}
+      prerelease: ${{ steps.select.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+
+      - name: Select builds
+        id: select
+        env:
+          MODE: ${{ inputs.mode }}
+          DEVICES: ${{ inputs.devices }}
+          VARIANTS: ${{ inputs.variants }}
+          CREATE_RELEASE: ${{ inputs.create_release }}
+          DEBUG: ${{ inputs.debug }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: python3 scripts/workflow.py plan
+
+      - name: Check release tag
+        if: ${{ inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RELEASE_REPO: ESK-Project/esk-releases
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "GH_TOKEN is required to publish a release" >&2
+            exit 1
+          fi
+
+          tags="$(gh api --paginate "repos/$RELEASE_REPO/tags?per_page=100" --jq '.[].name')"
+          if grep -Fxq "$RELEASE_TAG" <<< "$tags"; then
+            echo "Release tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+  build:
+    name: ${{ matrix.target }} / ${{ matrix.preset }}
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.selected) }}
+    uses: ./.github/workflows/build.yml
+    with:
+      target: ${{ matrix.target }}
+      preset: ${{ matrix.preset }}
+      kernel_ref: ${{ inputs.kernel_ref }}
+      ksu_ref: ${{ inputs.ksu_ref }}
+      stock_config: ${{ inputs.stock_config }}
+      debug: ${{ inputs.debug }}
+      notify: false
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  verify:
+    name: Verify artifacts
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@v8
+        with:
+          path: release_files
+
+      - name: Check build outputs
+        env:
+          SELECTION: ${{ needs.plan.outputs.selected }}
+          CREATE_RELEASE: ${{ inputs.create_release }}
+        run: python3 scripts/workflow.py verify
+
+  release:
+    name: Publish release
+    needs: [plan, verify]
+    if: ${{ inputs.create_release && needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: esk-release
+      cancel-in-progress: false
+    outputs:
+      url: ${{ steps.publish.outputs.url }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@v8
+        with:
+          path: release_files
+
+      - name: Prepare release notes
+        id: notes
+        env:
+          SELECTION: ${{ needs.plan.outputs.selected }}
+          CREATE_RELEASE: ${{ inputs.create_release }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+        run: python3 scripts/workflow.py notes
+
+      - name: Publish
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RELEASE_REPO: ESK-Project/esk-releases
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+          KERNEL_NAME: ${{ steps.notes.outputs.kernel_name }}
+        run: |
+          set -euo pipefail
+
+          tags="$(gh api --paginate "repos/$RELEASE_REPO/tags?per_page=100" --jq '.[].name')"
+          if grep -Fxq "$RELEASE_TAG" <<< "$tags"; then
+            echo "Release tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          args=()
+          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+
+          url="$(gh release create "$RELEASE_TAG" publish_files/* \
+            --repo "$RELEASE_REPO" \
+            --target main \
+            "${args[@]}" \
+            --title "$KERNEL_NAME Kernel $RELEASE_TAG" \
+            --notes-file release-notes.md)"
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+
+  notify:
+    name: Notify Telegram
+    needs: release
+    if: ${{ needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.4.0
+
+      - name: Send release notification
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          RELEASE_URL: ${{ needs.release.outputs.url }}
+        run: |
+          if [[ -z "$TG_BOT_TOKEN" || -z "$TG_CHAT_ID" ]]; then
+            exit 0
+          fi
+
+          uv run --locked --no-dev python - <<'PY'
+          import os
+
+          from esk.common import escape_md_v2
+          from esk.tg import send_message
+
+          url = os.environ["RELEASE_URL"]
+          send_message(escape_md_v2(f"Kernel release\n{url}"))
+          PY

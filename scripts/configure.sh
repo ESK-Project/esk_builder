@@ -27,6 +27,13 @@ clang_lto() {
 install_ksu() {
     info "Install KernelSU: $KSU_SETUP_URL ($KSU_REF)"
     curl -fsSL "$KSU_SETUP_URL" | bash -s -- "$KSU_REF"
+    local expected actual
+    expected="$(git -C "$KERNEL/KernelSU" rev-parse --verify "${KSU_REF}^{commit}")"
+    actual="$(git -C "$KERNEL/KernelSU" rev-parse HEAD)"
+    if [[ $actual != "$expected" ]]; then
+        error "KernelSU checkout does not match $KSU_REF"
+        return 1
+    fi
 }
 
 apply_susfs() {

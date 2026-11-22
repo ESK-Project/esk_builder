@@ -58,7 +58,7 @@ def list_targets() -> None:
 @app.command("presets")
 def list_presets() -> None:
     for name, values in read_toml(WORKSPACE / "presets.toml").items():
-        features = ", ".join(key for key, enabled in values.items() if enabled)
+        features = ", ".join(key for key, enabled in values.items() if enabled is True)
         marker = " (default)" if name == "vnl" else ""
         typer.echo(f"{name}{marker}: {features or 'vanilla'}")
 
@@ -106,6 +106,7 @@ def build(
     target: Annotated[str | None, typer.Argument()] = None,
     preset: str = "vnl",
     kernel_ref: str | None = None,
+    ksu_ref: str | None = None,
     stock_config: str | None = None,
     debug: Annotated[bool | None, typer.Option("--debug/--no-debug")] = None,
     jobs: int | None = None,
@@ -122,6 +123,7 @@ def build(
         target,
         preset,
         kernel_ref=kernel_ref,
+        ksu_ref=ksu_ref,
         stock_config=stock_config,
         debug=debug,
         jobs=jobs,
@@ -155,6 +157,7 @@ def show(
     target: Annotated[str | None, typer.Argument()] = None,
     preset: str = "vnl",
     kernel_ref: str | None = None,
+    ksu_ref: str | None = None,
     stock_config: str | None = None,
     debug: Annotated[bool | None, typer.Option("--debug/--no-debug")] = None,
     jobs: int | None = None,
@@ -170,6 +173,7 @@ def show(
         target,
         preset,
         kernel_ref=kernel_ref,
+        ksu_ref=ksu_ref,
         stock_config=stock_config,
         debug=debug,
         jobs=jobs,
@@ -184,6 +188,7 @@ def show(
         ("Target", settings.target),
         ("Preset", settings.preset),
         ("Kernel", f"{settings.kernel_url} @ {settings.kernel_ref}"),
+        ("KernelSU ref", settings.ksu_ref),
         ("AnyKernel3", f"{settings.ak3_url} @ {settings.ak3_ref}"),
         ("Defconfig", settings.defconfig),
         ("Overlays", ", ".join(settings.defconfig_overlays)),
@@ -205,6 +210,7 @@ def resolve(
     target: Annotated[str | None, typer.Argument()] = None,
     preset: str = "vnl",
     kernel_ref: str | None = None,
+    ksu_ref: str | None = None,
     stock_config: str | None = None,
     debug: Annotated[bool | None, typer.Option("--debug/--no-debug")] = None,
     jobs: int | None = None,
@@ -220,6 +226,7 @@ def resolve(
         target,
         preset,
         kernel_ref=kernel_ref,
+        ksu_ref=ksu_ref,
         stock_config=stock_config,
         debug=debug,
         jobs=jobs,

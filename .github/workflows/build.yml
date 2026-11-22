@@ -16,8 +16,12 @@ on:
         description: Kernel branch, tag, or commit (empty uses target config)
         type: string
         default: ""
+      ksu_ref:
+        description: KernelSU branch, tag, or commit (empty uses preset)
+        type: string
+        default: ""
       stock_config:
-        description: Stock configuration
+        description: Stock configuration spoof
         type: choice
         default: auto
         options: [auto, 'true', 'false']
@@ -38,6 +42,9 @@ on:
         type: string
         default: vnl
       kernel_ref:
+        type: string
+        default: ""
+      ksu_ref:
         type: string
         default: ""
       stock_config:
@@ -71,6 +78,7 @@ jobs:
       TARGET: ${{ inputs.target }}
       PRESET: ${{ inputs.preset }}
       KERNEL_REF_INPUT: ${{ inputs.kernel_ref }}
+      KSU_REF_INPUT: ${{ inputs.ksu_ref }}
       STOCK_CONFIG_INPUT: ${{ inputs.stock_config }}
       DEBUG_INPUT: ${{ inputs.debug }}
       NOTIFY: ${{ inputs.notify }}
@@ -109,6 +117,10 @@ jobs:
 
           if [[ -n "$KERNEL_REF_INPUT" ]]; then
             args+=(--kernel-ref "$KERNEL_REF_INPUT")
+          fi
+
+          if [[ -n "$KSU_REF_INPUT" ]]; then
+            args+=(--ksu-ref "$KSU_REF_INPUT")
           fi
 
           if [[ "$NOTIFY" == "true" ]]; then

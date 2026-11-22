@@ -47,6 +47,7 @@ The builder downloads the kernel source, AnyKernel3, Clang, and libfakestat. Ker
 ```bash
 uv run esk build xaga --preset ksu
 uv run esk build xaga --preset ksu-susfs --jobs 8
+uv run esk build xaga --preset ksu-susfs --ksu-ref main
 uv run esk build xaga --kernel-ref my-branch --stock-config false
 uv run esk build xaga --no-ccache
 uv run esk build xaga --debug
@@ -90,6 +91,8 @@ CLI options > preset > target > project defaults
 ```
 
 Lists replace earlier lists. The preset controls KernelSU and SuSFS.
+
+The `ksu-susfs` preset uses BakaSU's `sync-up` branch. Use `--ksu-ref` to override the preset's KernelSU branch, tag, or commit.
 
 `--stock-config auto` reads the target's `stock_config_default`, which is `false` for xaga. Pass `true` or `false` to override it.
 

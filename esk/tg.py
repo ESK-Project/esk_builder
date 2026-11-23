@@ -55,35 +55,61 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         preset = html.escape(env("PRESET"))
         debug = " · debug" if os.environ.get("DEBUG") == "true" else ""
         lines = [
-            f"<b>ESK / Build</b> · {status}",
+            f"<b>ESK Build · {status}</b>",
             "",
-            f"<b>{target}</b> / <code>{preset}</code>{debug}",
+            f"<b>Device:</b> {target}",
+            f"<b>Variant:</b> <code>{preset}</code>{debug}",
         ]
         if version := os.environ.get("KERNEL_VERSION"):
-            lines.append(f"Kernel <code>{html.escape(version)}</code>")
+            lines.append(f"<b>Kernel:</b> <code>{html.escape(version)}</code>")
         if commit := os.environ.get("KERNEL_COMMIT"):
-            lines.append(f"Commit <code>{html.escape(commit[:12])}</code>")
+            short_commit = html.escape(commit[:12])
+            if kernel_url := os.environ.get("KERNEL_URL"):
+                url = html.escape(
+                    f"{kernel_url.rstrip('/').removesuffix('.git')}/commit/{commit}",
+                    quote=True,
+                )
+                short_commit = f'<a href="{url}"><code>{short_commit}</code></a>'
+            else:
+                short_commit = f"<code>{short_commit}</code>"
+            lines.append(f"<b>Commit:</b> {short_commit}")
         if done and (compiler := os.environ.get("COMPILER_STRING")):
-            lines.append(f"Compiler <code>{html.escape(compiler.strip())}</code>")
+            lines.append(f"<b>Compiler:</b> {html.escape(compiler.strip())}")
         lines.append("")
         current = os.environ.get("BUILD_PROGRESS", "sources") if failed else stage
         stage_index = next(
             (i for i, (key, _) in enumerate(STAGES) if key == current), 0
         )
-        for i, (_, label) in enumerate(STAGES):
-            marker = (
-                "✓"
-                if done or i < stage_index
-                else "✕"
-                if failed and i == stage_index
-                else "●"
-                if i == stage_index
-                else "○"
+        if done:
+            lines.extend(
+                [
+                    f"<b>Duration:</b> <code>{seconds // 60}m {seconds % 60:02d}s</code>",
+                    "<b>Package:</b> AnyKernel3 ready",
+                ]
             )
-            lines.append(f"{marker} {html.escape(label)}")
-        lines.extend(
-            ["", f"<b>Elapsed:</b> <code>{seconds // 60:02d}:{seconds % 60:02d}</code>"]
-        )
+        elif failed:
+            lines.extend(
+                [
+                    f"<b>Failed at:</b> {html.escape(STAGES[stage_index][1])}",
+                    f"<b>Elapsed:</b> <code>{seconds // 60:02d}:{seconds % 60:02d}</code>",
+                ]
+            )
+        else:
+            lines.append("<b>Progress</b>")
+            for i, (_, label) in enumerate(STAGES):
+                label = html.escape(label)
+                if i < stage_index:
+                    lines.append(f"✓ {label}")
+                elif i == stage_index:
+                    lines.append(f"● <b>{label}</b>")
+                else:
+                    lines.append(f"○ {label}")
+            lines.extend(
+                [
+                    "",
+                    f"<b>Elapsed:</b> <code>{seconds // 60:02d}:{seconds % 60:02d}</code>",
+                ]
+            )
         if failed and message:
             detail = message.replace(token, "[redacted]")
             lines.extend(["", f"<code>{html.escape(detail[:500])}</code>"])

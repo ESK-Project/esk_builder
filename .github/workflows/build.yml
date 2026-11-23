@@ -13,11 +13,11 @@ on:
         default: vnl
         options: [vnl, ksu, ksu-susfs]
       kernel_ref:
-        description: Kernel branch, tag, or commit (empty uses target config)
+        description: Kernel ref override
         type: string
         default: ""
       ksu_ref:
-        description: KernelSU branch, tag, or commit (empty uses preset)
+        description: KernelSU ref override
         type: string
         default: ""
       stock_config:

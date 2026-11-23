@@ -11,8 +11,14 @@ package_anykernel() {
 
     local package_name="$1"
     local package_path="$OUT_DIR/$package_name-AnyKernel3.zip"
+    local flags="$PRESET"
+    if is_true "$DEBUG"; then
+        flags+=",debug"
+    fi
 
     pushd "$AK3" > /dev/null
+    sed -i -e '/^kernel\.string=/ s/ \[[^]]*\]$//' \
+        -e "/^kernel\.string=/ s/\$/ [$flags]/" anykernel.sh
     cp -p "$KERNEL_OUT/arch/arm64/boot/Image" .
 
     info "Compressing kernel image using zstd..."

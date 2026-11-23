@@ -47,6 +47,11 @@ def get_json_text(url: str, token_env: str = "GH_TOKEN") -> str:
 
     try:
         response = requests.get(url, headers=headers, timeout=30)
+        fallback_token = os.environ.get("GITHUB_TOKEN")
+        if response.status_code == 401 and token_env == "GH_TOKEN" and token and fallback_token:
+            print("[WARN] GH_TOKEN rejected, retrying with GITHUB_TOKEN", file=sys.stderr)
+            headers["Authorization"] = f"Bearer {fallback_token}"
+            response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
     except requests.RequestException as e:
         die(f"GET {url} failed: {e}")

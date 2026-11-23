@@ -6,4 +6,3 @@ ak3_ref = "plato"
 defconfig = "gki_defconfig"
 defconfig_overlays = ["vendor/xiaomi_mt6895.config", "vendor/plato.config"]
 module_load_dir = "targets/plato"
-stock_config_default = false

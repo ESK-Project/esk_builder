@@ -49,7 +49,6 @@ def build_environment(settings: "BuildSettings") -> dict[str, str]:
         "CCACHE_SIZE": settings.ccache_size,
         "TG_NOTIFY": settings.notify,
         "RESET_SOURCES": settings.reset_sources,
-        "STOCK_CONFIG": settings.stock_config,
         "DEBUG": settings.debug,
         "JOBS": settings.jobs,
         "FAKE_TIME": settings.fake_time,

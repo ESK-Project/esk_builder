@@ -24,11 +24,6 @@ on:
         description: KernelSU ref override
         type: string
         default: ''
-      stock_config:
-        description: Stock configuration spoof
-        type: choice
-        default: auto
-        options: [auto, 'true', 'false']
       debug:
         description: Enable debug
         type: boolean
@@ -102,7 +97,6 @@ jobs:
       preset: ${{ matrix.preset }}
       kernel_ref: ${{ matrix.kernel_ref }}
       ksu_ref: ${{ inputs.ksu_ref }}
-      stock_config: ${{ inputs.stock_config }}
       debug: ${{ inputs.debug }}
       notify: false
     secrets:

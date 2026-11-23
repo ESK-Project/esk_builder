@@ -61,7 +61,6 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     for label, value in (
         ("Target", env("TARGET_NAME")),
         ("Preset", env("PRESET")),
-        ("Stock config", env("STOCK_CONFIG")),
     ):
         lines.append(f"*{label}:* {escape_md_v2(value)}")
     if stage == "success":

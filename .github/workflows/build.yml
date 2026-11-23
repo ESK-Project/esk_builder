@@ -20,11 +20,6 @@ on:
         description: KernelSU ref override
         type: string
         default: ""
-      stock_config:
-        description: Stock configuration spoof
-        type: choice
-        default: auto
-        options: [auto, 'true', 'false']
       debug:
         description: Enable performance debugging
         type: boolean
@@ -47,9 +42,6 @@ on:
       ksu_ref:
         type: string
         default: ""
-      stock_config:
-        type: string
-        default: auto
       debug:
         type: boolean
         default: false
@@ -79,7 +71,6 @@ jobs:
       PRESET: ${{ inputs.preset }}
       KERNEL_REF_INPUT: ${{ inputs.kernel_ref }}
       KSU_REF_INPUT: ${{ inputs.ksu_ref }}
-      STOCK_CONFIG_INPUT: ${{ inputs.stock_config }}
       DEBUG_INPUT: ${{ inputs.debug }}
       NOTIFY: ${{ inputs.notify }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -110,7 +101,6 @@ jobs:
           fi
 
           args+=(--preset "$PRESET")
-          args+=(--stock-config "$STOCK_CONFIG_INPUT")
 
           if [[ "$DEBUG_INPUT" == "true" ]]; then
             args+=(--debug)

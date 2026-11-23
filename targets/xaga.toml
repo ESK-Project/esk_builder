@@ -6,4 +6,3 @@ ak3_ref = "xaga"
 defconfig = "gki_defconfig"
 defconfig_overlays = ["vendor/xiaomi_mt6895.config", "vendor/xaga.config"]
 module_load_dir = "targets/xaga"
-stock_config_default = false

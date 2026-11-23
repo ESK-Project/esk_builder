@@ -27,7 +27,6 @@ class BuildSettings:
     fake_time: str
     jobs: int = field(default_factory=lambda: os.cpu_count() or 1)
     lto: str
-    stock_config: bool
     debug: bool
     ksu: bool
     susfs: bool
@@ -70,14 +69,6 @@ def resolve_settings(
         key: value for key, value in (overrides or {}).items() if value is not None
     }
     values = project | device | presets[preset] | overrides
-    stock_default = values.pop("stock_config_default")
-    stock_config = values["stock_config"]
-    if isinstance(stock_config, str):
-        if stock_config not in {"auto", "true", "false"}:
-            raise ValueError("stock_config must be auto, true or false")
-        values["stock_config"] = (
-            stock_default if stock_config == "auto" else stock_config == "true"
-        )
     settings = BuildSettings(
         workspace=workspace, target=target, preset=preset, **values
     )

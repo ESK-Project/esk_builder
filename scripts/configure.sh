@@ -81,11 +81,6 @@ prepare_build() {
         config --disable CONFIG_KSU_SUSFS
     fi
 
-    if is_true "$STOCK_CONFIG"; then
-        info "Apply stock config patch"
-        patch -s -p1 --fuzz=3 --no-backup-if-mismatch < "$KERNEL_PATCHES/stock_config.patch"
-    fi
-
     if is_true "$DEBUG"; then
         info "Apply debug config patch"
         patch -s -p1 --no-backup-if-mismatch < "$KERNEL_PATCHES/debug.patch"

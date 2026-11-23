@@ -52,13 +52,10 @@ Omit the target to use `default_target` from `builder.toml`. Run `uv run esk bui
 uv run esk build xaga --kernel-ref my-branch
 uv run esk build xaga --preset ksu-susfs --ksu-ref main
 uv run esk build xaga --debug
-uv run esk build xaga --stock-config true
 uv run esk build xaga --jobs 8 --no-ccache
 ```
 
 `--ksu-ref` overrides BakaSU branch.
-
-`--stock-config` controls stock configuration spoofing.
 
 `--debug` enables kernel debugging options. Enable scheduler statistics at runtime when needed:
 

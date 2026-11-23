@@ -9,4 +9,3 @@ susfs = false
 [ksu-susfs]
 ksu = true
 susfs = true
-ksu_ref = "sync-up"

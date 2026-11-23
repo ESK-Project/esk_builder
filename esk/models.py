@@ -31,24 +31,3 @@ class MetadataPayload(BaseModel):
     features: dict[str, bool]
     compile_seconds: int
     artifacts: dict[str, str]
-
-
-class TelegramResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    ok: bool
-    description: str | None = None
-
-
-class TelegramMessageRequest(BaseModel):
-    chat_id: str
-    parse_mode: str = "MarkdownV2"
-    disable_web_page_preview: str = "true"
-    text: str
-
-
-class TelegramDocumentRequest(BaseModel):
-    chat_id: str
-    parse_mode: str = "MarkdownV2"
-    disable_web_page_preview: str = "true"
-    caption: str

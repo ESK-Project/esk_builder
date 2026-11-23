@@ -1,93 +1,132 @@
+import asyncio
+import html
 import os
 from pathlib import Path
 
-import requests
-from pydantic import ValidationError
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest, TelegramError
 
-from .common import die, env, escape_md_v2
-from .models import TelegramDocumentRequest, TelegramMessageRequest, TelegramResponse
+from .common import env
 
-
-def _request(method: str, payload: dict[str, object], files=None) -> None:
-    try:
-        response = requests.post(
-            f"https://api.telegram.org/bot{env('TG_BOT_TOKEN')}/{method}",
-            data=payload,
-            files=files,
-            timeout=180 if files else 30,
-        )
-        response.raise_for_status()
-    except requests.RequestException as error:
-        status = (
-            error.response.status_code if error.response is not None else "unavailable"
-        )
-        die(f"{method} failed: {type(error).__name__}, HTTP status {status}")
-    try:
-        result = TelegramResponse.model_validate_json(response.text)
-    except ValidationError:
-        die(f"{method} returned invalid JSON")
-    if not result.ok:
-        description = (result.description or "Unknown error").replace(
-            env("TG_BOT_TOKEN"), "[redacted]"
-        )
-        die(f"{method} failed: {description}")
+STAGES = (
+    ("sources", "Sources"),
+    ("toolchain", "Toolchain"),
+    ("compile", "Compiling kernel"),
+    ("modules", "Modules"),
+    ("package", "Packaging"),
+)
 
 
 def send_message(text: str) -> None:
-    payload = TelegramMessageRequest(chat_id=env("TG_CHAT_ID"), text=text)
-    _request("sendMessage", payload.model_dump(mode="json"))
+    async def send() -> None:
+        async with Bot(env("TG_BOT_TOKEN")) as bot:
+            await bot.send_message(env("TG_CHAT_ID"), text, parse_mode="MarkdownV2")
+
+    asyncio.run(send())
 
 
 def send_document(file_path: Path, caption: str) -> None:
-    payload = TelegramDocumentRequest(chat_id=env("TG_CHAT_ID"), caption=caption)
-    with file_path.open("rb") as handle:
-        _request(
-            "sendDocument",
-            payload.model_dump(mode="json"),
-            {"document": (file_path.name, handle)},
-        )
+    async def send() -> None:
+        async with Bot(env("TG_BOT_TOKEN")) as bot:
+            with file_path.open("rb") as document:
+                await bot.send_document(
+                    env("TG_CHAT_ID"),
+                    document,
+                    caption=caption,
+                    parse_mode="MarkdownV2",
+                    write_timeout=180,
+                )
+
+    asyncio.run(send())
 
 
 def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if os.environ.get("TG_NOTIFY") != "true":
         return
-    heading = {
-        "start": "Build started",
-        "success": "Build completed",
-        "error": "Build failed",
-    }[stage]
-    title = escape_md_v2(f"{env('KERNEL_NAME')} {heading}")
-    lines = [f"*{title}*"]
-    for label, value in (
-        ("Target", env("TARGET_NAME")),
-        ("Preset", env("PRESET")),
-    ):
-        lines.append(f"*{label}:* {escape_md_v2(value)}")
-    if stage == "success":
-        for label, value in (
-            ("Time", f"{seconds // 60}m {seconds % 60}s"),
-            ("Kernel", env("KERNEL_VERSION")),
-            ("Commit", env("KERNEL_COMMIT")),
-            ("Compiler", env("COMPILER_STRING")),
-        ):
-            lines.append(f"*{label}:* {escape_md_v2(value)}")
-    if os.environ.get("GITHUB_RUN_ID"):
-        url = (
-            f"{env('GITHUB_SERVER_URL')}/{env('GITHUB_REPOSITORY')}"
-            f"/actions/runs/{env('GITHUB_RUN_ID')}"
+
+    async def update() -> None:
+        token = env("TG_BOT_TOKEN")
+        chat_id = env("TG_CHAT_ID")
+        state_file = Path(env("OUT_DIR")) / ".telegram-message-id"
+        failed = stage == "error"
+        done = stage == "success"
+        status = "✕ Failed" if failed else "✓ Passed" if done else "● Running"
+        target = html.escape(env("TARGET_NAME"))
+        preset = html.escape(env("PRESET"))
+        debug = " · debug" if os.environ.get("DEBUG") == "true" else ""
+        lines = [
+            f"<b>ESK / Build</b> · {status}",
+            "",
+            f"<b>{target}</b> / <code>{preset}</code>{debug}",
+        ]
+        if version := os.environ.get("KERNEL_VERSION"):
+            lines.append(f"Kernel <code>{html.escape(version)}</code>")
+        if commit := os.environ.get("KERNEL_COMMIT"):
+            lines.append(f"Commit <code>{html.escape(commit[:12])}</code>")
+        if done and (compiler := os.environ.get("COMPILER_STRING")):
+            lines.append(f"Compiler <code>{html.escape(compiler.strip())}</code>")
+        lines.append("")
+        current = os.environ.get("BUILD_PROGRESS", "sources") if failed else stage
+        stage_index = next(
+            (i for i, (key, _) in enumerate(STAGES) if key == current), 0
         )
-        lines.append(escape_md_v2(url))
-    if message:
-        redacted_message = message.replace(
-            os.environ.get("TG_BOT_TOKEN", "\0"), "[redacted]"
+        for i, (_, label) in enumerate(STAGES):
+            marker = (
+                "✓"
+                if done or i < stage_index
+                else "✕"
+                if failed and i == stage_index
+                else "●"
+                if i == stage_index
+                else "○"
+            )
+            lines.append(f"{marker} {html.escape(label)}")
+        lines.extend(
+            ["", f"<b>Elapsed:</b> <code>{seconds // 60:02d}:{seconds % 60:02d}</code>"]
         )
-        lines.append(escape_md_v2(redacted_message))
-    caption = "\n".join(lines)
-    if stage == "success":
-        send_document(
-            Path(env("OUT_DIR")) / f"{env('PACKAGE_NAME')}-AnyKernel3.zip", caption
-        )
-    elif stage == "error" and Path(os.environ.get("LOGFILE", "")).is_file():
-        send_document(Path(env("LOGFILE")), caption)
-    else:
-        send_message(caption)
+        if failed and message:
+            detail = message.replace(token, "[redacted]")
+            lines.extend(["", f"<code>{html.escape(detail[:500])}</code>"])
+        markup = None
+        if os.environ.get("GITHUB_RUN_ID"):
+            url = f"{env('GITHUB_SERVER_URL')}/{env('GITHUB_REPOSITORY')}/actions/runs/{env('GITHUB_RUN_ID')}"
+            markup = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("View workflow ↗", url=url)]]
+            )
+        text = "\n".join(lines)
+        async with Bot(token) as bot:
+            message_id = state_file.read_text().strip() if state_file.exists() else ""
+            if message_id:
+                try:
+                    await bot.edit_message_text(
+                        text,
+                        chat_id=chat_id,
+                        message_id=int(message_id),
+                        parse_mode="HTML",
+                        reply_markup=markup,
+                    )
+                except BadRequest as error:
+                    if "message is not modified" not in str(error).lower():
+                        sent = await bot.send_message(
+                            chat_id, text, parse_mode="HTML", reply_markup=markup
+                        )
+                        state_file.write_text(str(sent.message_id))
+                except TelegramError:
+                    sent = await bot.send_message(
+                        chat_id, text, parse_mode="HTML", reply_markup=markup
+                    )
+                    state_file.write_text(str(sent.message_id))
+            else:
+                sent = await bot.send_message(
+                    chat_id, text, parse_mode="HTML", reply_markup=markup
+                )
+                state_file.write_text(str(sent.message_id))
+            if done:
+                path = Path(env("OUT_DIR")) / f"{env('PACKAGE_NAME')}-AnyKernel3.zip"
+                with path.open("rb") as document:
+                    await bot.send_document(chat_id, document, write_timeout=180)
+            elif failed and (path := Path(os.environ.get("LOGFILE", ""))).is_file():
+                with path.open("rb") as document:
+                    await bot.send_document(chat_id, document, write_timeout=180)
+
+    asyncio.run(update())

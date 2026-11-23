@@ -5,6 +5,7 @@ description = "esk_builder"
 requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.13.4",
+    "python-telegram-bot>=22.8",
     "requests>=2.32.0",
     "typer>=0.12.0",
 ]

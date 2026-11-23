@@ -305,8 +305,16 @@ def tg_doc(file: Path) -> None:
 
 @tg_app.command("notify")
 def tg_notify(stage: str, seconds: int = 0) -> None:
-    if stage not in {"start", "success", "error"}:
-        raise typer.BadParameter("Stage must be start, success, or error")
+    if stage not in {
+        "sources",
+        "toolchain",
+        "compile",
+        "modules",
+        "package",
+        "success",
+        "error",
+    }:
+        raise typer.BadParameter("Unknown notification stage")
     notify(stage, seconds, sys.stdin.read() if stage == "error" else "")
 
 

@@ -35,7 +35,6 @@ def build_environment(settings: "BuildSettings") -> dict[str, str]:
         "CCACHE_DIR": root / settings.ccache_dir,
         "CCACHE_STATSLOG": out / "ccache.log",
         "DLKM_FS_CONFIG": source / "anykernel3/config/vendor_dlkm_fs_config",
-        "DLKM_FILE_CONTEXTS": source / "anykernel3/config/vendor_dlkm_file_contexts",
     }
     values = {
         "BUILD_TARGET": settings.target,

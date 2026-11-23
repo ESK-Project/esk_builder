@@ -100,25 +100,7 @@ vendor_dlkm() {
 
     cp -p "$depmod_dir"/modules.{alias,dep,softdep} "$mods_dir/"
 
-    cat > "$DLKM_FS_CONFIG" << 'EOF'
-/ 0 0 0755
-/lost+found 0 0 0755
-vendor_dlkm 0 0 0755
-vendor_dlkm/etc 0 0 0755
-vendor_dlkm/etc/NOTICE.xml.gz 0 0 0644
-vendor_dlkm/etc/build.prop 0 0 0644
-vendor_dlkm/etc/fs_config_dirs 0 0 0644
-vendor_dlkm/etc/fs_config_files 0 0 0644
-vendor_dlkm/lib 0 0 0755
-vendor_dlkm/lib/modules 0 0 0755
-EOF
-
-    cat > "$DLKM_FILE_CONTEXTS" << 'EOF'
-/ u:object_r:vendor_file:s0
-/vendor_dlkm/etc(/.*)? u:object_r:vendor_configs_file:s0
-/vendor_dlkm(/.*)? u:object_r:vendor_file:s0
-EOF
-
+    : > "$DLKM_FS_CONFIG"
     for file in "$mods_dir"/*; do
         name="$(basename "$file")"
         printf 'vendor_dlkm/lib/modules/%s 0 0 0644\n' "$name" >> "$DLKM_FS_CONFIG"

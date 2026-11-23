@@ -4,13 +4,11 @@ set -Eeuo pipefail
 
 WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$WORKSPACE/scripts/common.sh"
-source "$WORKSPACE/scripts/sources.sh"
 source "$WORKSPACE/scripts/toolchain.sh"
 source "$WORKSPACE/scripts/configure.sh"
 source "$WORKSPACE/scripts/compile.sh"
 source "$WORKSPACE/scripts/modules.sh"
 source "$WORKSPACE/scripts/package.sh"
-source "$WORKSPACE/scripts/notify.sh"
 
 count() {
     ((++STEP))
@@ -62,6 +60,13 @@ prepare_dirs() {
         reset_dir "$SOURCE_DIR"
     fi
     mkdir -p "$SOURCE_DIR" "$KERNEL_OUT" "$MOD_FLAT" "$MOD_STAGE"
+}
+
+fetch_sources() {
+    step "Fetch sources"
+    KERNEL_COMMIT="$(py_cli source sync "$KERNEL_URL" "$KERNEL_REF" "$KERNEL")" || return $?
+    export KERNEL_COMMIT
+    py_cli source sync "$AK3_URL" "$AK3_REF" "$AK3" > /dev/null
 }
 
 main() {

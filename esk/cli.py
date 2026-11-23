@@ -12,12 +12,12 @@ import typer
 from .common import die, stdin_text
 from .config import (
     BuildSettings,
+    build_environment,
     read_toml,
     resolve_settings,
     validate_build,
     validate_managed_path,
 )
-from .environment import build_environment
 from .github_release import asset_url_api, asset_url_json
 from .meta import write_metadata
 from .sources import sync_source

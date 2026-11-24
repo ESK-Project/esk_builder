@@ -308,6 +308,7 @@ def tg_notify(stage: str, seconds: int = 0) -> None:
     if stage not in {
         "sources",
         "toolchain",
+        "configure",
         "compile",
         "modules",
         "package",

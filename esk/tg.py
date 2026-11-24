@@ -12,6 +12,7 @@ from .common import env
 STAGES = (
     ("sources", "Sources"),
     ("toolchain", "Toolchain"),
+    ("configure", "Kernel configuration"),
     ("compile", "Compiling kernel"),
     ("modules", "Modules"),
     ("package", "Packaging"),
@@ -62,6 +63,12 @@ def send_document(file_path: Path, caption: str) -> None:
     )
 
 
+def format_time(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds}s"
+    return f"{seconds // 60}m {seconds % 60:02d}s"
+
+
 def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if os.environ.get("TG_NOTIFY") != "true":
         return
@@ -77,8 +84,8 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     preset = html.escape(env("PRESET"))
     debug = " · debug" if os.environ.get("DEBUG") == "true" else ""
     lines = [
-        f"<h3>ESK Build · {status}</h3>",
-        f"<p><b>Device:</b> {target}<br><b>Variant:</b> <code>{preset}</code>{debug}",
+        f"<h3>ESK Build — {status}</h3>",
+        f"<p><b>Device:</b> <code>{target}</code><br><b>Variant:</b> <code>{preset}</code>{debug}",
     ]
     commit_url = ""
     if version := os.environ.get("KERNEL_VERSION"):
@@ -89,32 +96,45 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             commit_url = (
                 f"{kernel_url.rstrip('/').removesuffix('.git')}/commit/{commit}"
             )
-            short_commit = f'<a href="{html.escape(commit_url, quote=True)}"><code>{short_commit}</code></a>'
+            short_commit = (
+                f'<a href="{html.escape(commit_url, quote=True)}">{short_commit}</a>'
+            )
         else:
             short_commit = f"<code>{short_commit}</code>"
         lines.append(f"<br><b>Commit:</b> {short_commit}")
     current = os.environ.get("BUILD_PROGRESS", "sources") if failed else stage
     stage_index = next((i for i, (key, _) in enumerate(STAGES) if key == current), 0)
+    timings = {}
+    for item in os.environ.get("BUILD_TIMINGS", "").split(","):
+        key, separator, duration = item.partition(":")
+        if separator and duration.isdecimal():
+            timings[key] = timings.get(key, 0) + int(duration)
+    started = os.environ.get("BUILD_PROGRESS_STARTED", "")
+    if (failed or not done) and started.isdecimal():
+        timings[current] = timings.get(current, 0) + max(0, seconds - int(started))
     if done:
         lines.append(
-            f"<br><b>Duration:</b> <code>{seconds // 60}m {seconds % 60:02d}s</code></p>"
+            f"<br><b>Duration:</b> <code>{format_time(seconds)}</code></p>"
         )
     elif failed:
         lines.append(
-            f"<br><b>Failed at:</b> {html.escape(STAGES[stage_index][1])}<br><b>Elapsed:</b> <code>{seconds // 60:02d}:{seconds % 60:02d}</code></p>"
+            f"<br><b>Failed at:</b> {html.escape(STAGES[stage_index][1])}<br><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>"
         )
     else:
         lines.append("</p><p><b>Progress</b><br>")
-        for i, (_, label) in enumerate(STAGES):
+        for i, (key, label) in enumerate(STAGES):
             label = html.escape(label)
+            duration = (
+                f" · <code>{format_time(timings[key])}</code>" if key in timings else ""
+            )
             if i < stage_index:
-                lines.append(f"✓ {label}<br>")
+                lines.append(f"✓ {label}{duration}<br>")
             elif i == stage_index:
-                lines.append(f"● <b>{label}</b><br>")
+                lines.append(f"◉ <b>{label}</b>{duration}<br>")
             else:
                 lines.append(f"○ {label}<br>")
         lines.append(
-            f"</p><p><b>Elapsed:</b> <code>{seconds // 60:02d}:{seconds % 60:02d}</code></p>"
+            f"</p><p><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>"
         )
 
     details = []
@@ -131,6 +151,17 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         lines.append(
             "<details><summary>Build details</summary><p>"
             + "<br>".join(details)
+            + "</p></details>"
+        )
+    if (done or failed) and timings:
+        entries = [
+            f"{html.escape(label)} · <code>{format_time(timings[key])}</code>"
+            for key, label in STAGES
+            if key in timings
+        ]
+        lines.append(
+            "<details><summary>Stage timings</summary><p>"
+            + "<br>".join(entries)
             + "</p></details>"
         )
     if failed and message:
@@ -175,11 +206,11 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if os.environ.get("GITHUB_RUN_ID"):
         workflow = f"{env('GITHUB_SERVER_URL')}/{env('GITHUB_REPOSITORY')}/actions/runs/{env('GITHUB_RUN_ID')}"
         buttons.append(
-            f'<tg-button type="url" url="{html.escape(workflow, quote=True)}">View workflow ↗</tg-button>'
+            f'<tg-button type="url" url="{html.escape(workflow, quote=True)}">View workflow</tg-button>'
         )
     if commit_url:
         buttons.append(
-            f'<tg-button type="url" url="{html.escape(commit_url, quote=True)}">View commit ↗</tg-button>'
+            f'<tg-button type="url" url="{html.escape(commit_url, quote=True)}">View commit</tg-button>'
         )
     if buttons:
         lines.append("<tg-button-row>" + "".join(buttons) + "</tg-button-row>")

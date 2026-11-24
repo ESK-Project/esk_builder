@@ -15,23 +15,27 @@ count() {
     BUILD_STAGE="$1"
     case "$1" in
         fetch_sources) BUILD_PROGRESS=sources ;;
-        setup_toolchain) BUILD_PROGRESS=toolchain ;;
+        setup_toolchain | setup_ld_preload | setup_ccache) BUILD_PROGRESS=toolchain ;;
+        prepare_build) BUILD_PROGRESS=configure ;;
         build_kernel) BUILD_PROGRESS=compile ;;
         build_module) BUILD_PROGRESS=modules ;;
-        package_anykernel) BUILD_PROGRESS=package ;;
+        package_anykernel | write_metadata) BUILD_PROGRESS=package ;;
         *)
             "$@"
             return
             ;;
     esac
-    export BUILD_PROGRESS
+    BUILD_PROGRESS_STARTED=$SECONDS
+    export BUILD_PROGRESS BUILD_PROGRESS_STARTED
     telegram_progress "$BUILD_PROGRESS"
-    if [[ $BUILD_PROGRESS == compile ]] && is_true "$TG_NOTIFY"; then
-        (while sleep 60; do telegram_progress compile; done) &
+    if is_true "$TG_NOTIFY"; then
+        (while sleep 60; do telegram_progress "$BUILD_PROGRESS"; done) &
         TG_PROGRESS_PID=$!
     fi
     "$@"
     stop_telegram_progress
+    BUILD_TIMINGS+="$BUILD_PROGRESS:$((SECONDS - BUILD_PROGRESS_STARTED)),"
+    export BUILD_TIMINGS
 }
 
 validate_env() {
@@ -95,7 +99,7 @@ fetch_sources() {
 
 main() {
     : "${TARGET_NAME:?Use the Python CLI: uv run esk build}"
-    SECONDS=0 STEP=0
+    SECONDS=0 STEP=0 BUILD_TIMINGS=""
     validate_deps
     validate_env
     count prepare_output

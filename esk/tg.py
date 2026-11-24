@@ -1,9 +1,11 @@
 import html
 import json
 import os
+import subprocess
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import requests
 
@@ -69,6 +71,34 @@ def format_time(seconds: int) -> str:
     return f"{seconds // 60}m {seconds % 60:02d}s"
 
 
+def git_remote(path: Path) -> str:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(path), "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=True,
+        ).stdout.strip()
+    except OSError, subprocess.SubprocessError:
+        return ""
+
+
+def commit_link(commit: str, repository: str) -> str:
+    if repository.startswith("git@") and ":" in repository:
+        host, path = repository[4:].split(":", 1)
+    else:
+        parsed = urlsplit(repository)
+        host, path = parsed.hostname or "", parsed.path.lstrip("/")
+    label = html.escape(commit[:12])
+    if host not in {"github.com", "gitlab.com"} or not path:
+        return label
+    path = path.rstrip("/").removesuffix(".git")
+    separator = "/-/commit/" if host == "gitlab.com" else "/commit/"
+    url = html.escape(f"https://{host}/{path}{separator}{commit}", quote=True)
+    return f'<a href="{url}">{label}</a>'
+
+
 def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if os.environ.get("TG_NOTIFY") != "true":
         return
@@ -79,28 +109,23 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     state_file = out / ".telegram-message-id"
     failed = stage == "error"
     done = stage == "success"
-    status = "✕ Failed" if failed else "✓ Passed" if done else "● Running"
+    status = "❌ Failed" if failed else "✅ Passed" if done else "⏳ Running"
     target = html.escape(env("TARGET_NAME"))
     preset = html.escape(env("PRESET"))
     debug = " · debug" if os.environ.get("DEBUG") == "true" else ""
     lines = [
-        f"<h3>ESK Build — {status}</h3>",
+        f"<p>🔨 <b>ESK Build</b> — {status}</p>",
         f"<p><b>Device:</b> <code>{target}</code><br><b>Variant:</b> <code>{preset}</code>{debug}",
     ]
     commit_url = ""
     if version := os.environ.get("KERNEL_VERSION"):
         lines.append(f"<br><b>Kernel:</b> <code>{html.escape(version)}</code>")
     if commit := os.environ.get("KERNEL_COMMIT"):
-        short_commit = html.escape(commit[:12])
+        short_commit = commit_link(commit, os.environ.get("KERNEL_URL", ""))
         if kernel_url := os.environ.get("KERNEL_URL"):
             commit_url = (
                 f"{kernel_url.rstrip('/').removesuffix('.git')}/commit/{commit}"
             )
-            short_commit = (
-                f'<a href="{html.escape(commit_url, quote=True)}">{short_commit}</a>'
-            )
-        else:
-            short_commit = f"<code>{short_commit}</code>"
         lines.append(f"<br><b>Commit:</b> {short_commit}")
     current = os.environ.get("BUILD_PROGRESS", "sources") if failed else stage
     stage_index = next((i for i, (key, _) in enumerate(STAGES) if key == current), 0)
@@ -128,7 +153,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             if i < stage_index:
                 lines.append(f"✓ {label}{duration}<br>")
             elif i == stage_index:
-                lines.append(f"◉ <b>{label}</b>{duration}<br>")
+                lines.append(f"⏳ <b>{label}</b>{duration}<br>")
             else:
                 lines.append(f"○ {label}<br>")
         lines.append(f"</p><p><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>")
@@ -137,15 +162,25 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     for label, name in (
         ("Kernel ref", "KERNEL_REF"),
         ("Compiler", "COMPILER_STRING"),
-        ("Builder commit", "BUILDER_COMMIT"),
-        ("KernelSU commit", "KSU_COMMIT"),
-        ("SuSFS commit", "SUSFS_COMMIT"),
     ):
         if value := os.environ.get(name):
             details.append(f"<b>{label}:</b> <code>{html.escape(value.strip())}</code>")
+    if value := os.environ.get("BUILDER_COMMIT"):
+        repository = git_remote(Path(env("WORKSPACE")))
+        details.append(
+            f"<b>Builder commit:</b> {commit_link(value.strip(), repository)}"
+        )
+    if value := os.environ.get("KSU_COMMIT"):
+        repository = git_remote(Path(env("KERNEL")) / "KernelSU")
+        details.append(
+            f"<b>KernelSU commit:</b> {commit_link(value.strip(), repository)}"
+        )
+    if value := os.environ.get("SUSFS_COMMIT"):
+        repository = os.environ.get("SUSFS_URL", "")
+        details.append(f"<b>SuSFS commit:</b> {commit_link(value.strip(), repository)}")
     if details:
         lines.append(
-            "<details><summary>Build details</summary><p>"
+            "<details><summary>📋 Build details</summary><p>"
             + "<br>".join(details)
             + "</p></details>"
         )
@@ -156,26 +191,26 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             if key in timings
         ]
         lines.append(
-            "<details><summary>Stage timings</summary><p>"
+            "<details><summary>⏱ Stage timings</summary><p>"
             + "<br>".join(entries)
             + "</p></details>"
         )
     if failed and message:
         detail = html.escape(message.replace(token, "[redacted]")[:4000])
         lines.append(
-            f"<details><summary>Error details</summary><pre>{detail}</pre></details>"
+            f"<details><summary>⚠️ Error details</summary><pre>{detail}</pre></details>"
         )
     stats = out / "ccache-stats.txt"
     if (done or failed) and stats.is_file():
         lines.append(
-            f"<details><summary>Ccache stats</summary><pre>{html.escape(stats.read_text(errors='replace'))}</pre></details>"
+            f"<details><summary>📊 Ccache stats</summary><pre>{html.escape(stats.read_text(errors='replace'))}</pre></details>"
         )
 
     files: dict[str, Path] = {}
     media = []
     if done:
         files["kernel"] = out / f"{env('PACKAGE_NAME')}-AnyKernel3.zip"
-        lines.append('<tg-document src="tg://document?id=kernel"></tg-document>')
+        lines.insert(1, '<tg-document src="tg://document?id=kernel"></tg-document>')
     if done or failed:
         build_files = []
         for name, path in (
@@ -189,7 +224,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
                 )
         if build_files:
             lines.append(
-                "<details><summary>Build files</summary>"
+                "<details><summary>📁 Build files</summary>"
                 + "".join(build_files)
                 + "</details>"
             )

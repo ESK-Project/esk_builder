@@ -105,14 +105,7 @@ def commit_link(commit: str, url: str) -> str:
     return f'<a href="{html.escape(url, quote=True)}">{label}</a>' if url else label
 
 
-def notify(stage: str, seconds: int = 0, message: str = "") -> None:
-    if os.environ.get("TG_NOTIFY") != "true":
-        return
-
-    token = env("TG_BOT_TOKEN")
-    chat_id = env("TG_CHAT_ID")
-    out = Path(env("OUT_DIR"))
-    state_file = out / ".telegram-message-id"
+def render_build_header(stage: str) -> tuple[list[str], str]:
     failed = stage == "error"
     done = stage == "success"
     status = "❌ Failed" if failed else "✅ Passed" if done else "⏳ Running"
@@ -130,16 +123,28 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         commit_url = repository_commit_url(os.environ.get("KERNEL_URL", ""), commit)
         short_commit = commit_link(commit, commit_url)
         lines.append(f"<br><b>Commit:</b> {short_commit}")
-    current = os.environ.get("BUILD_PROGRESS", "sources") if failed else stage
-    stage_index = next((i for i, (key, _) in enumerate(STAGES) if key == current), 0)
-    timings = {}
+    return lines, commit_url
+
+
+def stage_timings(stage: str, current: str, seconds: int) -> dict[str, int]:
+    timings: dict[str, int] = {}
     for item in os.environ.get("BUILD_TIMINGS", "").split(","):
         key, separator, duration = item.partition(":")
         if separator and duration.isdecimal():
             timings[key] = timings.get(key, 0) + int(duration)
     started = os.environ.get("BUILD_PROGRESS_STARTED", "")
-    if (failed or not done) and started.isdecimal():
+    if stage != "success" and started.isdecimal():
         timings[current] = timings.get(current, 0) + max(0, seconds - int(started))
+    return timings
+
+
+def render_progress(
+    stage: str, current: str, seconds: int, timings: dict[str, int]
+) -> list[str]:
+    done = stage == "success"
+    failed = stage == "error"
+    stage_index = next((i for i, (key, _) in enumerate(STAGES) if key == current), 0)
+    lines = []
     if done:
         lines.append(f"<br><b>Duration:</b> <code>{format_time(seconds)}</code></p>")
     elif failed:
@@ -160,7 +165,10 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             else:
                 lines.append(f"– {label}<br>")
         lines.append(f"</p><p><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>")
+    return lines
 
+
+def render_build_details() -> str:
     details = []
     for label, name in (
         ("Kernel ref", "KERNEL_REF"),
@@ -178,13 +186,20 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if value := os.environ.get("SUSFS_COMMIT"):
         url = repository_commit_url(os.environ.get("SUSFS_URL", ""), value.strip())
         details.append(f"<b>SuSFS commit:</b> {commit_link(value.strip(), url)}")
-    if details:
-        lines.append(
-            "<details><summary>Build details</summary><p>"
-            + "<br>".join(details)
-            + "</p></details>"
-        )
-    if (done or failed) and timings:
+    if not details:
+        return ""
+    return (
+        "<details><summary>Build details</summary><p>"
+        + "<br>".join(details)
+        + "</p></details>"
+    )
+
+
+def render_build_diagnostics(
+    out: Path, timings: dict[str, int], message: str, token: str
+) -> list[str]:
+    lines = []
+    if timings:
         entries = [
             f"{html.escape(label)} · <code>{format_time(timings[key])}</code>"
             for key, label in STAGES
@@ -195,44 +210,36 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             + "<br>".join(entries)
             + "</p></details>"
         )
-    if failed and message:
+    if message:
         detail = html.escape(message.replace(token, "[redacted]")[:4000])
         lines.append(
             f"<details><summary>Error details</summary><pre>{detail}</pre></details>"
         )
     stats = out / "ccache-stats.txt"
-    if (done or failed) and stats.is_file():
+    if stats.is_file():
         lines.append(
             f"<details><summary>Ccache stats</summary><pre>{html.escape(stats.read_text(errors='replace'))}</pre></details>"
         )
+    return lines
 
+
+def build_attachments(out: Path, stage: str) -> dict[str, Path]:
     files: dict[str, Path] = {}
-    media = []
-    if done:
+    if stage not in {"success", "error"}:
+        return files
+    if stage == "success":
         files["kernel"] = out / f"{env('PACKAGE_NAME')}-AnyKernel3.zip"
-        lines.insert(1, '<tg-document src="tg://document?id=kernel"></tg-document>')
-    if done or failed:
-        build_files = []
-        for name, path in (
-            ("metadata", out / "build.json"),
-            ("log", out / "build.log"),
-        ):
-            if path.is_file():
-                files[name] = path
-                build_files.append(
-                    f'<tg-document src="tg://document?id={name}"></tg-document>'
-                )
-        if build_files:
-            lines.append(
-                "<details><summary>Build files</summary>"
-                + "".join(build_files)
-                + "</details>"
-            )
-    for name in files:
-        media.append(
-            {"id": name, "media": {"type": "document", "media": f"attach://{name}"}}
-        )
+    for name, path in (("metadata", out / "build.json"), ("log", out / "build.log")):
+        if path.is_file():
+            files[name] = path
+    return files
 
+
+def render_document(name: str) -> str:
+    return f'<tg-document src="tg://document?id={name}"></tg-document>'
+
+
+def render_buttons(commit_url: str) -> str:
     buttons = []
     if os.environ.get("GITHUB_RUN_ID"):
         workflow = f"{env('GITHUB_SERVER_URL')}/{env('GITHUB_REPOSITORY')}/actions/runs/{env('GITHUB_RUN_ID')}"
@@ -243,33 +250,88 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         buttons.append(
             f'<tg-button type="url" url="{html.escape(commit_url, quote=True)}">View commit</tg-button>'
         )
-    if buttons:
-        lines.append("<tg-button-row>" + "".join(buttons) + "</tg-button-row>")
+    if not buttons:
+        return ""
+    return "<tg-button-row>" + "".join(buttons) + "</tg-button-row>"
 
+
+def publish_notification(
+    state_file: Path, chat_id: str, content: dict[str, Any], files: dict[str, Path]
+) -> None:
     message_id = state_file.read_text().strip() if state_file.is_file() else ""
 
-    def publish(content: dict[str, Any], uploads: dict[str, Path]) -> None:
-        data = {"chat_id": chat_id, "rich_message": json.dumps(content)}
-        if message_id:
-            try:
-                request("editMessageText", data | {"message_id": message_id}, uploads)
+    data = {"chat_id": chat_id, "rich_message": json.dumps(content)}
+    if message_id:
+        try:
+            request("editMessageText", data | {"message_id": message_id}, files)
+            return
+        except TelegramError as error:
+            if "message is not modified" in str(error).lower():
                 return
-            except TelegramError as error:
-                if "message is not modified" in str(error).lower():
-                    return
-                if "message to edit not found" not in str(error).lower():
-                    raise
-        sent = request("sendRichMessage", data, uploads)
-        state_file.write_text(str(sent["message_id"]))
+            if "message to edit not found" not in str(error).lower():
+                raise
+    sent = request("sendRichMessage", data, files)
+    state_file.write_text(str(sent["message_id"]))
 
-    rich_message: dict[str, Any] = {"html": "".join(lines)}
-    if media:
-        rich_message["media"] = media
+
+def render_notification(
+    stage: str, seconds: int, message: str, out: Path, token: str
+) -> tuple[list[str], str]:
+    current = os.environ.get("BUILD_PROGRESS", "sources") if stage == "error" else stage
+    timings = stage_timings(stage, current, seconds)
+
+    lines, commit_url = render_build_header(stage)
+    lines.extend(render_progress(stage, current, seconds, timings))
+    lines.append(render_build_details())
+
+    if stage in {"success", "error"}:
+        lines.extend(
+            render_build_diagnostics(
+                out, timings, message if stage == "error" else "", token
+            )
+        )
+    return lines, render_buttons(commit_url)
+
+
+def rich_message_payload(
+    lines: list[str], buttons: str, files: dict[str, Path]
+) -> dict[str, Any]:
+    content = lines.copy()
+    if "kernel" in files:
+        content.insert(1, render_document("kernel"))
+    build_files = [render_document(name) for name in files if name != "kernel"]
+    if build_files:
+        content.append(
+            "<details><summary>Build files</summary>"
+            + "".join(build_files)
+            + "</details>"
+        )
+
+    rich_message: dict[str, Any] = {"html": "".join(content) + buttons}
+    if files:
+        rich_message["media"] = [
+            {"id": name, "media": {"type": "document", "media": f"attach://{name}"}}
+            for name in files
+        ]
+    return rich_message
+
+
+def notify(stage: str, seconds: int = 0, message: str = "") -> None:
+    if os.environ.get("TG_NOTIFY") != "true":
+        return
+
+    token = env("TG_BOT_TOKEN")
+    chat_id = env("TG_CHAT_ID")
+    out = Path(env("OUT_DIR"))
+    state_file = out / ".telegram-message-id"
+    lines, buttons = render_notification(stage, seconds, message, out, token)
+    files = build_attachments(out, stage)
+    payload = rich_message_payload(lines, buttons, files)
     try:
-        publish(rich_message, files)
+        publish_notification(state_file, chat_id, payload, files)
     except TelegramError:
         if not files:
             raise
-        fallback = "".join(line for line in lines if "<tg-document" not in line)
+        fallback = "".join(lines) + buttons
         fallback += "<p>Files could not be attached. See workflow artifacts.</p>"
-        publish({"html": fallback}, {})
+        publish_notification(state_file, chat_id, {"html": fallback}, {})

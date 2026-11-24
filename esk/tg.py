@@ -114,7 +114,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     preset = html.escape(env("PRESET"))
     debug = " · debug" if os.environ.get("DEBUG") == "true" else ""
     lines = [
-        f"<p>🔨 <b>ESK Build</b> — {status}</p>",
+        f"<p><b>ESK Build</b> — {status}</p>",
         f"<p><b>Device:</b> <code>{target}</code><br><b>Variant:</b> <code>{preset}</code>{debug}",
     ]
     commit_url = ""
@@ -153,9 +153,9 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             if i < stage_index:
                 lines.append(f"✓ {label}{duration}<br>")
             elif i == stage_index:
-                lines.append(f"⏳ <b>{label}</b>{duration}<br>")
+                lines.append(f"› <b>{label}</b>{duration}<br>")
             else:
-                lines.append(f"○ {label}<br>")
+                lines.append(f"– {label}<br>")
         lines.append(f"</p><p><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>")
 
     details = []
@@ -180,7 +180,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         details.append(f"<b>SuSFS commit:</b> {commit_link(value.strip(), repository)}")
     if details:
         lines.append(
-            "<details><summary>📋 Build details</summary><p>"
+            "<details><summary>Build details</summary><p>"
             + "<br>".join(details)
             + "</p></details>"
         )
@@ -191,19 +191,19 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
             if key in timings
         ]
         lines.append(
-            "<details><summary>⏱ Stage timings</summary><p>"
+            "<details><summary>Stage timings</summary><p>"
             + "<br>".join(entries)
             + "</p></details>"
         )
     if failed and message:
         detail = html.escape(message.replace(token, "[redacted]")[:4000])
         lines.append(
-            f"<details><summary>⚠️ Error details</summary><pre>{detail}</pre></details>"
+            f"<details><summary>Error details</summary><pre>{detail}</pre></details>"
         )
     stats = out / "ccache-stats.txt"
     if (done or failed) and stats.is_file():
         lines.append(
-            f"<details><summary>📊 Ccache stats</summary><pre>{html.escape(stats.read_text(errors='replace'))}</pre></details>"
+            f"<details><summary>Ccache stats</summary><pre>{html.escape(stats.read_text(errors='replace'))}</pre></details>"
         )
 
     files: dict[str, Path] = {}
@@ -224,7 +224,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
                 )
         if build_files:
             lines.append(
-                "<details><summary>📁 Build files</summary>"
+                "<details><summary>Build files</summary>"
                 + "".join(build_files)
                 + "</details>"
             )

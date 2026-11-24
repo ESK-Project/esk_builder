@@ -80,6 +80,26 @@ telegram_progress() {
     py_cli tg notify "$1" --seconds "$SECONDS" 2> /dev/null || warn "Telegram notification failed"
 }
 
+telegram_heartbeat() {
+    local sleep_pid=""
+
+    trap 'if [[ -n $sleep_pid ]]; then
+        kill "$sleep_pid" 2> /dev/null || true
+        wait "$sleep_pid" 2> /dev/null || true
+    fi
+    exit 0' TERM
+
+    while true; do
+        sleep 60 &
+        sleep_pid=$!
+        wait "$sleep_pid" || break
+        sleep_pid=""
+
+        # Bash defers TERM handling until the foreground notification returns.
+        telegram_progress "$1"
+    done
+}
+
 stop_telegram_progress() {
     if [[ -n ${TG_PROGRESS_PID:-} ]]; then
         kill "$TG_PROGRESS_PID" 2> /dev/null || true

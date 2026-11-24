@@ -29,7 +29,7 @@ count() {
     export BUILD_PROGRESS BUILD_PROGRESS_STARTED
     telegram_progress "$BUILD_PROGRESS"
     if is_true "$TG_NOTIFY"; then
-        (while sleep 60; do telegram_progress "$BUILD_PROGRESS"; done) &
+        telegram_heartbeat "$BUILD_PROGRESS" &
         TG_PROGRESS_PID=$!
     fi
     "$@"

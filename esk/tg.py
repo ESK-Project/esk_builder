@@ -84,19 +84,25 @@ def git_remote(path: Path) -> str:
         return ""
 
 
-def commit_link(commit: str, repository: str) -> str:
+def repository_commit_url(repository: str, commit: str) -> str:
     if repository.startswith("git@") and ":" in repository:
         host, path = repository[4:].split(":", 1)
     else:
-        parsed = urlsplit(repository)
-        host, path = parsed.hostname or "", parsed.path.lstrip("/")
-    label = html.escape(commit[:12])
-    if host not in {"github.com", "gitlab.com"} or not path:
-        return label
+        try:
+            parsed = urlsplit(repository)
+            host, path = parsed.hostname or "", parsed.path.lstrip("/")
+        except ValueError:
+            return ""
     path = path.rstrip("/").removesuffix(".git")
+    if host not in {"github.com", "gitlab.com"} or not path:
+        return ""
     separator = "/-/commit/" if host == "gitlab.com" else "/commit/"
-    url = html.escape(f"https://{host}/{path}{separator}{commit}", quote=True)
-    return f'<a href="{url}">{label}</a>'
+    return f"https://{host}/{path}{separator}{commit}"
+
+
+def commit_link(commit: str, url: str) -> str:
+    label = html.escape(commit[:12])
+    return f'<a href="{html.escape(url, quote=True)}">{label}</a>' if url else label
 
 
 def notify(stage: str, seconds: int = 0, message: str = "") -> None:
@@ -121,11 +127,8 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if version := os.environ.get("KERNEL_VERSION"):
         lines.append(f"<br><b>Kernel:</b> <code>{html.escape(version)}</code>")
     if commit := os.environ.get("KERNEL_COMMIT"):
-        short_commit = commit_link(commit, os.environ.get("KERNEL_URL", ""))
-        if kernel_url := os.environ.get("KERNEL_URL"):
-            commit_url = (
-                f"{kernel_url.rstrip('/').removesuffix('.git')}/commit/{commit}"
-            )
+        commit_url = repository_commit_url(os.environ.get("KERNEL_URL", ""), commit)
+        short_commit = commit_link(commit, commit_url)
         lines.append(f"<br><b>Commit:</b> {short_commit}")
     current = os.environ.get("BUILD_PROGRESS", "sources") if failed else stage
     stage_index = next((i for i, (key, _) in enumerate(STAGES) if key == current), 0)
@@ -166,18 +169,15 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         if value := os.environ.get(name):
             details.append(f"<b>{label}:</b> <code>{html.escape(value.strip())}</code>")
     if value := os.environ.get("BUILDER_COMMIT"):
-        repository = git_remote(Path(env("WORKSPACE")))
-        details.append(
-            f"<b>Builder commit:</b> {commit_link(value.strip(), repository)}"
-        )
+        url = repository_commit_url(git_remote(Path(env("WORKSPACE"))), value.strip())
+        details.append(f"<b>Builder commit:</b> {commit_link(value.strip(), url)}")
     if value := os.environ.get("KSU_COMMIT"):
         repository = git_remote(Path(env("KERNEL")) / "KernelSU")
-        details.append(
-            f"<b>KernelSU commit:</b> {commit_link(value.strip(), repository)}"
-        )
+        url = repository_commit_url(repository, value.strip())
+        details.append(f"<b>KernelSU commit:</b> {commit_link(value.strip(), url)}")
     if value := os.environ.get("SUSFS_COMMIT"):
-        repository = os.environ.get("SUSFS_URL", "")
-        details.append(f"<b>SuSFS commit:</b> {commit_link(value.strip(), repository)}")
+        url = repository_commit_url(os.environ.get("SUSFS_URL", ""), value.strip())
+        details.append(f"<b>SuSFS commit:</b> {commit_link(value.strip(), url)}")
     if details:
         lines.append(
             "<details><summary>Build details</summary><p>"

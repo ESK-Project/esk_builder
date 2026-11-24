@@ -113,9 +113,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     if (failed or not done) and started.isdecimal():
         timings[current] = timings.get(current, 0) + max(0, seconds - int(started))
     if done:
-        lines.append(
-            f"<br><b>Duration:</b> <code>{format_time(seconds)}</code></p>"
-        )
+        lines.append(f"<br><b>Duration:</b> <code>{format_time(seconds)}</code></p>")
     elif failed:
         lines.append(
             f"<br><b>Failed at:</b> {html.escape(STAGES[stage_index][1])}<br><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>"
@@ -133,9 +131,7 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
                 lines.append(f"◉ <b>{label}</b>{duration}<br>")
             else:
                 lines.append(f"○ {label}<br>")
-        lines.append(
-            f"</p><p><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>"
-        )
+        lines.append(f"</p><p><b>Elapsed:</b> <code>{format_time(seconds)}</code></p>")
 
     details = []
     for label, name in (

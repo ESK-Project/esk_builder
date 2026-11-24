@@ -21,7 +21,7 @@ from .config import (
 from .github_release import asset_url_api, asset_url_json
 from .meta import write_metadata
 from .sources import sync_source
-from .tg import notify, send_document, send_message
+from .tg import TelegramError, notify, send_document, send_message, send_release
 
 app = typer.Typer(no_args_is_help=True)
 release_app = typer.Typer(no_args_is_help=True)
@@ -317,6 +317,14 @@ def tg_notify(stage: str, seconds: int = 0) -> None:
     }:
         raise typer.BadParameter("Unknown notification stage")
     notify(stage, seconds, sys.stdin.read() if stage == "error" else "")
+
+
+@tg_app.command("release")
+def tg_release(manifest: Path, release_url: str) -> None:
+    try:
+        send_release(manifest, release_url)
+    except TelegramError as error:
+        die(str(error))
 
 
 if __name__ == "__main__":

@@ -129,8 +129,6 @@ jobs:
     concurrency:
       group: esk-release
       cancel-in-progress: false
-    outputs:
-      url: ${{ steps.publish.outputs.url }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7.1.0
@@ -174,34 +172,20 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "$url" >> "$GITHUB_STEP_SUMMARY"
 
-  notify:
-    name: Notify Telegram
-    needs: release
-    if: ${{ needs.release.result == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-python@v7.1.0
-        with:
-          python-version: '3.14'
       - uses: astral-sh/setup-uv@v10.4.0
+        id: telegram-setup
+        continue-on-error: true
 
       - name: Send release notification
+        if: ${{ steps.telegram-setup.outcome == 'success' }}
+        continue-on-error: true
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-          RELEASE_URL: ${{ needs.release.outputs.url }}
+          RELEASE_URL: ${{ steps.publish.outputs.url }}
         run: |
           if [[ -z "$TG_BOT_TOKEN" || -z "$TG_CHAT_ID" ]]; then
             exit 0
           fi
 
-          uv run --locked --no-dev python - <<'PY'
-          import os
-
-          from esk.common import escape_md_v2
-          from esk.tg import send_message
-
-          url = os.environ["RELEASE_URL"]
-          send_message(escape_md_v2(f"Kernel release\n{url}"))
-          PY
+          uv run --locked --no-dev esk tg release publish_files/release.json "$RELEASE_URL"

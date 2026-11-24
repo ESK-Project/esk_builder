@@ -5,7 +5,7 @@ import subprocess
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -239,6 +239,13 @@ def render_document(name: str) -> str:
     return f'<tg-document src="tg://document?id={name}"></tg-document>'
 
 
+def document_media(files: dict[str, Path]) -> list[dict[str, Any]]:
+    return [
+        {"id": name, "media": {"type": "document", "media": f"attach://{name}"}}
+        for name in files
+    ]
+
+
 def render_buttons(commit_url: str) -> str:
     buttons = []
     if os.environ.get("GITHUB_RUN_ID"):
@@ -309,10 +316,7 @@ def rich_message_payload(
 
     rich_message: dict[str, Any] = {"html": "".join(content) + buttons}
     if files:
-        rich_message["media"] = [
-            {"id": name, "media": {"type": "document", "media": f"attach://{name}"}}
-            for name in files
-        ]
+        rich_message["media"] = document_media(files)
     return rich_message
 
 
@@ -335,3 +339,114 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
         fallback = "".join(lines) + buttons
         fallback += "<p>Files could not be attached. See workflow artifacts.</p>"
         publish_notification(state_file, chat_id, {"html": fallback}, {})
+
+
+def release_downloads(
+    builds: list[dict[str, Any]], directory: Path, asset_url: str
+) -> tuple[list[str], dict[str, Path]]:
+    devices: dict[str, list[str]] = {}
+    files: dict[str, Path] = {}
+    for index, build in enumerate(builds):
+        name = build["release_package"]
+        if Path(name).name != name:
+            raise ValueError(f"Invalid release package name {name!r}")
+        path = directory / name
+        if path.stat().st_size <= 50_000_000:
+            key = f"build_{index}"
+            files[key] = path
+            document = render_document(key)
+        else:
+            link = html.escape(f"{asset_url}/{quote(name)}", quote=True)
+            document = f'<p><a href="{link}">{html.escape(name)}</a> (GitHub)</p>'
+        devices.setdefault(build["target"], []).append(document)
+
+    lines = []
+    for target, documents in devices.items():
+        count = len(documents)
+        label = "build" if count == 1 else "builds"
+        lines.append(
+            f"<details open><summary>{html.escape(target)} · {count} {label}</summary>"
+            + "".join(documents)
+            + "</details>"
+        )
+    return lines, files
+
+
+def release_kernel_line(builds: list[dict[str, Any]]) -> tuple[str, bool]:
+    versions = dict.fromkeys(build["kernel_version"] for build in builds)
+    parts = [f"Linux <code>{html.escape(version)}</code>" for version in versions]
+    revisions = {(build["kernel_url"], build["kernel_commit"]) for build in builds}
+    shared_revision = len(revisions) == 1
+    if shared_revision:
+        repository, commit = revisions.pop()
+        url = repository_commit_url(repository, commit)
+        parts.append(commit_link(commit, url))
+    return "<p>" + " · ".join(parts) + "</p>", shared_revision
+
+
+def release_build_details(
+    builds: list[dict[str, Any]], manifest_url: str, show_device_commits: bool
+) -> str:
+    compilers = dict.fromkeys(build["toolchain"] for build in builds)
+    details = [f"<b>Compiler:</b> {html.escape(', '.join(compilers))}"]
+    if show_device_commits:
+        device_revisions = dict.fromkeys(
+            (build["target"], build["kernel_url"], build["kernel_commit"])
+            for build in builds
+        )
+        for target, repository, commit in device_revisions:
+            url = repository_commit_url(repository, commit)
+            details.append(f"<b>{html.escape(target)}:</b> {commit_link(commit, url)}")
+    details.append(f'<a href="{html.escape(manifest_url)}">Release manifest</a>')
+    return (
+        "<details><summary>Build details</summary><p>"
+        + "<br>".join(details)
+        + "</p></details>"
+    )
+
+
+def release_buttons(release_url: str) -> str:
+    links = [("GitHub release", release_url)]
+    if os.environ.get("GITHUB_RUN_ID"):
+        workflow = f"{env('GITHUB_SERVER_URL')}/{env('GITHUB_REPOSITORY')}/actions/runs/{env('GITHUB_RUN_ID')}"
+        links.append(("Workflow", workflow))
+    buttons = [
+        f'<tg-button type="url" url="{html.escape(url, quote=True)}">{label}</tg-button>'
+        for label, url in links
+    ]
+    return "<tg-button-row>" + "".join(buttons) + "</tg-button-row>"
+
+
+def render_release(
+    manifest: Path, release_url: str
+) -> tuple[dict[str, Any], dict[str, Path]]:
+    release = json.loads(manifest.read_text())
+    builds = release["builds"]
+    release_url = release_url.rstrip("/")
+    asset_url = release_url.replace("/releases/tag/", "/releases/download/", 1)
+    manifest_url = f"{asset_url}/{quote(manifest.name)}"
+
+    kernel_name = html.escape(builds[0]["kernel_name"])
+    version = html.escape(release["version"])
+    kernel_line, shared_revision = release_kernel_line(builds)
+    downloads, files = release_downloads(builds, manifest.parent, asset_url)
+    sections = [
+        f"<p><b>{kernel_name} Kernel {version}</b></p>",
+        kernel_line,
+        *downloads,
+        release_build_details(builds, manifest_url, not shared_revision),
+        release_buttons(release_url),
+    ]
+    payload: dict[str, Any] = {"html": "".join(sections)}
+    if files:
+        payload["media"] = document_media(files)
+    return payload, files
+
+
+def send_release(manifest: Path, release_url: str) -> None:
+    payload, files = render_release(manifest, release_url)
+    request(
+        "sendRichMessage",
+        {"chat_id": env("TG_CHAT_ID"), "rich_message": json.dumps(payload)},
+        files,
+    )

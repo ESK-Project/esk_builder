@@ -21,7 +21,7 @@ from .config import (
 from .github_release import asset_url_api, asset_url_json
 from .meta import write_metadata
 from .sources import sync_source
-from .tg import TelegramError, notify, send_document, send_message, send_release
+from .tg import TelegramError, notify, send_release
 
 app = typer.Typer(no_args_is_help=True)
 release_app = typer.Typer(no_args_is_help=True)
@@ -293,16 +293,6 @@ def meta_write(output: Path) -> None:
     write_metadata(output)
 
 
-@tg_app.command("msg")
-def tg_msg() -> None:
-    send_message(stdin_text())
-
-
-@tg_app.command("doc")
-def tg_doc(file: Path) -> None:
-    send_document(file, stdin_text())
-
-
 @tg_app.command("notify")
 def tg_notify(stage: str, seconds: int = 0) -> None:
     if stage not in {
@@ -323,7 +313,7 @@ def tg_notify(stage: str, seconds: int = 0) -> None:
 def tg_release(manifest: Path, release_url: str) -> None:
     try:
         send_release(manifest, release_url)
-    except TelegramError as error:
+    except (TelegramError, ValueError, OSError) as error:
         die(str(error))
 
 

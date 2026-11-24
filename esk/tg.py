@@ -2,6 +2,7 @@ import html
 import json
 import os
 import subprocess
+import sys
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from urllib.parse import quote, urlsplit
 import requests
 
 from .common import env
+from .models import ReleaseBuild, ReleaseManifest
 
 STAGES = (
     ("sources", "Sources"),
@@ -20,13 +22,20 @@ STAGES = (
     ("package", "Packaging"),
 )
 
+PUBLIC_BOT_API = "https://api.telegram.org"
+
 
 class TelegramError(Exception):
     pass
 
 
 def request(
-    method: str, data: dict[str, Any], files: dict[str, Path] | None = None
+    method: str,
+    data: dict[str, Any],
+    files: dict[str, Path] | None = None,
+    *,
+    api_url: str = PUBLIC_BOT_API,
+    timeout: int | None = None,
 ) -> Any:
     token = env("TG_BOT_TOKEN")
     try:
@@ -36,10 +45,10 @@ def request(
                 for name, path in (files or {}).items()
             }
             response = requests.post(
-                f"https://api.telegram.org/bot{token}/{method}",
+                f"{api_url}/bot{token}/{method}",
                 data=data,
                 files=uploads or None,
-                timeout=180 if uploads else 30,
+                timeout=timeout if timeout is not None else (180 if uploads else 30),
             )
         payload = response.json()
         if not response.ok or not payload.get("ok"):
@@ -48,21 +57,6 @@ def request(
         return payload["result"]
     except (requests.RequestException, ValueError, OSError, KeyError) as error:
         raise TelegramError(f"{method} failed: {type(error).__name__}") from None
-
-
-def send_message(text: str) -> None:
-    request(
-        "sendMessage",
-        {"chat_id": env("TG_CHAT_ID"), "text": text, "parse_mode": "MarkdownV2"},
-    )
-
-
-def send_document(file_path: Path, caption: str) -> None:
-    request(
-        "sendDocument",
-        {"chat_id": env("TG_CHAT_ID"), "caption": caption, "parse_mode": "MarkdownV2"},
-        {"document": file_path},
-    )
 
 
 def format_time(seconds: int) -> str:
@@ -239,10 +233,21 @@ def render_document(name: str) -> str:
     return f'<tg-document src="tg://document?id={name}"></tg-document>'
 
 
-def document_media(files: dict[str, Path]) -> list[dict[str, Any]]:
+def document_media(
+    files: dict[str, Path], *, local: bool = False
+) -> list[dict[str, Any]]:
+    # Ref: https://github.com/NextAlone/NagramActionRelated/blob/main/channel-publish/channel_publish.py
     return [
-        {"id": name, "media": {"type": "document", "media": f"attach://{name}"}}
-        for name in files
+        {
+            "id": name,
+            "media": {
+                "type": "document",
+                "media": path.resolve(strict=True).as_uri()
+                if local
+                else f"attach://{name}",
+            },
+        }
+        for name, path in files.items()
     ]
 
 
@@ -342,23 +347,17 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
 
 
 def release_downloads(
-    builds: list[dict[str, Any]], directory: Path, asset_url: str
+    builds: list[ReleaseBuild], directory: Path
 ) -> tuple[list[str], dict[str, Path]]:
     devices: dict[str, list[str]] = {}
     files: dict[str, Path] = {}
     for index, build in enumerate(builds):
-        name = build["release_package"]
+        name = build.release_package
         if Path(name).name != name:
             raise ValueError(f"Invalid release package name {name!r}")
-        path = directory / name
-        if path.stat().st_size <= 50_000_000:
-            key = f"build_{index}"
-            files[key] = path
-            document = render_document(key)
-        else:
-            link = html.escape(f"{asset_url}/{quote(name)}", quote=True)
-            document = f'<p><a href="{link}">{html.escape(name)}</a> (GitHub)</p>'
-        devices.setdefault(build["target"], []).append(document)
+        key = f"build_{index}"
+        files[key] = directory / name
+        devices.setdefault(build.target, []).append(render_document(key))
 
     lines = []
     for target, documents in devices.items():
@@ -372,10 +371,10 @@ def release_downloads(
     return lines, files
 
 
-def release_kernel_line(builds: list[dict[str, Any]]) -> tuple[str, bool]:
-    versions = dict.fromkeys(build["kernel_version"] for build in builds)
+def release_kernel_line(builds: list[ReleaseBuild]) -> tuple[str, bool]:
+    versions = dict.fromkeys(build.kernel_version for build in builds)
     parts = [f"Linux <code>{html.escape(version)}</code>" for version in versions]
-    revisions = {(build["kernel_url"], build["kernel_commit"]) for build in builds}
+    revisions = {(build.kernel_url, build.kernel_commit) for build in builds}
     shared_revision = len(revisions) == 1
     if shared_revision:
         repository, commit = revisions.pop()
@@ -385,14 +384,13 @@ def release_kernel_line(builds: list[dict[str, Any]]) -> tuple[str, bool]:
 
 
 def release_build_details(
-    builds: list[dict[str, Any]], manifest_url: str, show_device_commits: bool
+    builds: list[ReleaseBuild], manifest_url: str, show_device_commits: bool
 ) -> str:
-    compilers = dict.fromkeys(build["toolchain"] for build in builds)
+    compilers = dict.fromkeys(build.toolchain for build in builds)
     details = [f"<b>Compiler:</b> {html.escape(', '.join(compilers))}"]
     if show_device_commits:
         device_revisions = dict.fromkeys(
-            (build["target"], build["kernel_url"], build["kernel_commit"])
-            for build in builds
+            (build.target, build.kernel_url, build.kernel_commit) for build in builds
         )
         for target, repository, commit in device_revisions:
             url = repository_commit_url(repository, commit)
@@ -417,19 +415,17 @@ def release_buttons(release_url: str) -> str:
     return "<tg-button-row>" + "".join(buttons) + "</tg-button-row>"
 
 
-def render_release(
-    manifest: Path, release_url: str
-) -> tuple[dict[str, Any], dict[str, Path]]:
-    release = json.loads(manifest.read_text())
-    builds = release["builds"]
+def render_release(manifest: Path, release_url: str) -> dict[str, Any]:
+    release = ReleaseManifest.model_validate_json(manifest.read_bytes())
+    builds = release.builds
     release_url = release_url.rstrip("/")
     asset_url = release_url.replace("/releases/tag/", "/releases/download/", 1)
     manifest_url = f"{asset_url}/{quote(manifest.name)}"
 
-    kernel_name = html.escape(builds[0]["kernel_name"])
-    version = html.escape(release["version"])
+    kernel_name = html.escape(builds[0].kernel_name)
+    version = html.escape(release.version)
     kernel_line, shared_revision = release_kernel_line(builds)
-    downloads, files = release_downloads(builds, manifest.parent, asset_url)
+    downloads, files = release_downloads(builds, manifest.parent)
     sections = [
         f"<p><b>{kernel_name} Kernel {version}</b></p>",
         kernel_line,
@@ -439,14 +435,21 @@ def render_release(
     ]
     payload: dict[str, Any] = {"html": "".join(sections)}
     if files:
-        payload["media"] = document_media(files)
-    return payload, files
+        payload["media"] = document_media(files, local=True)
+    return payload
 
 
 def send_release(manifest: Path, release_url: str) -> None:
-    payload, files = render_release(manifest, release_url)
-    request(
-        "sendRichMessage",
-        {"chat_id": env("TG_CHAT_ID"), "rich_message": json.dumps(payload)},
-        files,
-    )
+    api_url = env("TG_BOT_API_URL").rstrip("/")
+    payload = render_release(manifest, release_url)
+    data = {"chat_id": env("TG_CHAT_ID"), "rich_message": json.dumps(payload)}
+    try:
+        request("sendRichMessage", data, api_url=api_url, timeout=600)
+    finally:
+        try:
+            request("logOut", {}, api_url=api_url)
+        except TelegramError as error:
+            print(
+                f"[WARN] Could not log out of the local Telegram Bot API: {error}",
+                file=sys.stderr,
+            )

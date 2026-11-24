@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -26,10 +25,6 @@ def stdin_text() -> str:
     if not text:
         die("stdin is empty")
     return text
-
-
-def escape_md_v2(text: str) -> str:
-    return re.sub(r"([\\_*[\]()~`>#+\-=|{}.!])", r"\\\1", text)
 
 
 def write_json_file(path: Path, payload: BaseModel) -> None:

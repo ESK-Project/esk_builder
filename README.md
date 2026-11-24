@@ -98,7 +98,25 @@ By default, the ccache defaults to 2 GB.
 
 The multi-build workflow resolves kernel refs, checks artifacts and can publish prereleases to `ESK-Project/esk-releases`. Publishing requires `GH_TOKEN` and a release tag. Debug builds cannot be published.
 
-Build outputs and logs are available as GitHub Actions artifacts. Telegram notifications require `TG_BOT_TOKEN` and `TG_CHAT_ID`.
+Build outputs and logs are available as GitHub Actions artifacts.
+
+### Telegram notifications
+
+- Single build with live progress, build logs, and a ZIP on success.
+- Release post with ZIPs grouped by device.
+
+To turn this on, add the secrets below in your GitHub repo under Settings → Secrets and variables → Actions. Give the bot permission to post in your Telegram chat or channel.
+
+| Secret | Used by | Value |
+| --- | --- | --- |
+| `TG_CHAT_ID` | Both | Chat ID or channel username |
+| `TG_BOT_TOKEN` | Both | Bot token from BotFather |
+| `TELEGRAM_API_ID` | Release | `api_id` from Telegram |
+| `TELEGRAM_API_HASH` | Release | `api_hash` from Telegram |
+
+For release posts, sign in at [my.telegram.org](https://my.telegram.org), open “API development tools”, and create an application. Copy the two values into the secrets above. CI uses them to upload the ZIPs through a temporary Telegram server. [Telegram setup guide](https://core.telegram.org/api/obtaining_api_id)
+
+If the bot previously used the cloud Bot API, call `logOut` there once before its first local run. Cloud build notifications may be unavailable for 10 minutes after that call. [Telegram Bot API](https://core.telegram.org/bots/api#logout)
 
 ## Development
 

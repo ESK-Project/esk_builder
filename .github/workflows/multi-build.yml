@@ -51,6 +51,7 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.4.0
 
       - name: Select builds
         id: select
@@ -62,7 +63,7 @@ jobs:
           DEBUG: ${{ inputs.debug }}
           KERNEL_REF: ${{ inputs.kernel_ref }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: python3 scripts/workflow.py plan
+        run: uv run --locked --no-dev python scripts/workflow.py plan
 
       - name: Check release tag
         if: ${{ inputs.create_release }}
@@ -111,6 +112,7 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.4.0
       - uses: actions/download-artifact@v8
         with:
           path: release_files
@@ -119,7 +121,7 @@ jobs:
         env:
           SELECTION: ${{ needs.plan.outputs.selected }}
           CREATE_RELEASE: ${{ inputs.create_release }}
-        run: python3 scripts/workflow.py verify
+        run: uv run --locked --no-dev python scripts/workflow.py verify
 
   release:
     name: Publish release
@@ -134,6 +136,7 @@ jobs:
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
+      - uses: astral-sh/setup-uv@v10.4.0
       - uses: actions/download-artifact@v8
         with:
           path: release_files
@@ -144,7 +147,7 @@ jobs:
           SELECTION: ${{ needs.plan.outputs.selected }}
           CREATE_RELEASE: ${{ inputs.create_release }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: python3 scripts/workflow.py notes
+        run: uv run --locked --no-dev python scripts/workflow.py notes
 
       - name: Publish
         id: publish
@@ -172,20 +175,57 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "$url" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: astral-sh/setup-uv@v10.4.0
-        id: telegram-setup
-        continue-on-error: true
-
       - name: Send release notification
-        if: ${{ steps.telegram-setup.outcome == 'success' }}
         continue-on-error: true
         env:
+          GH_TOKEN: ${{ github.token }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TG_BOT_API_URL: http://127.0.0.1:8081
           RELEASE_URL: ${{ steps.publish.outputs.url }}
         run: |
+          set -euo pipefail
           if [[ -z "$TG_BOT_TOKEN" || -z "$TG_CHAT_ID" ]]; then
+            echo "Skipping Telegram release notification. Set TG_BOT_TOKEN and TG_CHAT_ID to enable it."
             exit 0
           fi
+          if [[ -z "$TELEGRAM_API_ID" || -z "$TELEGRAM_API_HASH" ]]; then
+            echo "::error::Set TELEGRAM_API_ID and TELEGRAM_API_HASH for the local Bot API server."
+            exit 1
+          fi
+
+          # Ref: https://github.com/NextAlone/NagramActionRelated/blob/main/channel-publish/action.yml
+          work="$(mktemp -d "$RUNNER_TEMP/telegram-bot-api.XXXXXX")"
+          server=""
+          cleanup() {
+            if [[ -n "$server" ]]; then
+              kill "$server" 2>/dev/null || true
+              wait "$server" 2>/dev/null || true
+            fi
+            rm -rf -- "$work"
+          }
+          trap cleanup EXIT
+
+          bot_api_release=https://api.github.com/repos/NextAlone/NagramActionRelated/releases/latest
+          bot_api_url="$(uv run --locked --no-dev esk release asset-url telegram-bot-api-linux-x86_64 \
+            --api-url "$bot_api_release")"
+          curl -fsSLo "$work/telegram-bot-api" --retry 3 "$bot_api_url"
+          chmod +x "$work/telegram-bot-api"
+          "$work/telegram-bot-api" --local --http-ip-address=127.0.0.1 --http-port=8081 \
+            --dir="$work" >/dev/null 2>&1 &
+          server=$!
+
+          for attempt in {1..30}; do
+            if curl --silent --max-time 1 --output /dev/null "$TG_BOT_API_URL/"; then
+              break
+            fi
+            if [[ "$attempt" == 30 ]] || ! kill -0 "$server" 2>/dev/null; then
+              echo "::error::The local Telegram Bot API server did not start."
+              exit 1
+            fi
+            sleep 1
+          done
 
           uv run --locked --no-dev esk tg release publish_files/release.json "$RELEASE_URL"

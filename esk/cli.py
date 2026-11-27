@@ -21,7 +21,7 @@ from .config import (
 from .github_release import asset_url_api, asset_url_json
 from .meta import write_metadata
 from .sources import sync_source
-from .tg import notify, send_document, send_message
+from .tg import TelegramError, notify, send_release
 
 app = typer.Typer(no_args_is_help=True)
 release_app = typer.Typer(no_args_is_help=True)
@@ -29,10 +29,10 @@ meta_app = typer.Typer(no_args_is_help=True)
 tg_app = typer.Typer(no_args_is_help=True)
 source_app = typer.Typer(no_args_is_help=True)
 
-app.add_typer(release_app, name="release")
-app.add_typer(meta_app, name="meta")
-app.add_typer(tg_app, name="tg")
-app.add_typer(source_app, name="source")
+app.add_typer(release_app, name="release", hidden=True)
+app.add_typer(meta_app, name="meta", hidden=True)
+app.add_typer(tg_app, name="tg", hidden=True)
+app.add_typer(source_app, name="source", hidden=True)
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 
@@ -201,7 +201,7 @@ def show(
         typer.echo(f"{label}: {value}")
 
 
-@app.command("resolve", help="Print resolved build settings as JSON.")
+@app.command("resolve", help="Print resolved build settings as JSON.", hidden=True)
 def resolve(
     target: Annotated[str | None, typer.Argument()] = None,
     preset: str = "vnl",
@@ -293,21 +293,28 @@ def meta_write(output: Path) -> None:
     write_metadata(output)
 
 
-@tg_app.command("msg")
-def tg_msg() -> None:
-    send_message(stdin_text())
-
-
-@tg_app.command("doc")
-def tg_doc(file: Path) -> None:
-    send_document(file, stdin_text())
-
-
 @tg_app.command("notify")
 def tg_notify(stage: str, seconds: int = 0) -> None:
-    if stage not in {"start", "success", "error"}:
-        raise typer.BadParameter("Stage must be start, success, or error")
+    if stage not in {
+        "sources",
+        "toolchain",
+        "configure",
+        "compile",
+        "modules",
+        "package",
+        "success",
+        "error",
+    }:
+        raise typer.BadParameter("Unknown notification stage")
     notify(stage, seconds, sys.stdin.read() if stage == "error" else "")
+
+
+@tg_app.command("release")
+def tg_release(manifest: Path, release_url: str) -> None:
+    try:
+        send_release(manifest, release_url)
+    except (TelegramError, ValueError, OSError) as error:
+        die(str(error))
 
 
 if __name__ == "__main__":

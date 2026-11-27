@@ -13,13 +13,37 @@ source "$WORKSPACE/scripts/package.sh"
 count() {
     ((++STEP))
     BUILD_STAGE="$1"
+    case "$1" in
+        fetch_sources) BUILD_PROGRESS=sources ;;
+        setup_toolchain | setup_ld_preload | setup_ccache) BUILD_PROGRESS=toolchain ;;
+        prepare_build) BUILD_PROGRESS=configure ;;
+        build_kernel) BUILD_PROGRESS=compile ;;
+        build_module) BUILD_PROGRESS=modules ;;
+        package_anykernel | write_metadata) BUILD_PROGRESS=package ;;
+        *)
+            "$@"
+            return
+            ;;
+    esac
+    BUILD_PROGRESS_STARTED=$SECONDS
+    export BUILD_PROGRESS BUILD_PROGRESS_STARTED
+    telegram_progress "$BUILD_PROGRESS"
+    if is_true "$TG_NOTIFY"; then
+        telegram_heartbeat "$BUILD_PROGRESS" &
+        TG_PROGRESS_PID=$!
+    fi
     "$@"
+    stop_telegram_progress
+    BUILD_TIMINGS+="$BUILD_PROGRESS:$((SECONDS - BUILD_PROGRESS_STARTED)),"
+    export BUILD_TIMINGS
 }
 
 validate_env() {
     if is_true "$TG_NOTIFY"; then
-        : "${TG_BOT_TOKEN:?TG_BOT_TOKEN is required when notifications are enabled}"
-        : "${TG_CHAT_ID:?TG_CHAT_ID is required when notifications are enabled}"
+        if [[ -z ${TG_BOT_TOKEN:-} || -z ${TG_CHAT_ID:-} ]]; then
+            warn "Telegram credentials missing; notifications disabled"
+            export TG_NOTIFY=false
+        fi
     fi
 }
 
@@ -67,11 +91,15 @@ fetch_sources() {
     KERNEL_COMMIT="$(py_cli source sync "$KERNEL_URL" "$KERNEL_REF" "$KERNEL")" || return $?
     export KERNEL_COMMIT
     py_cli source sync "$AK3_URL" "$AK3_REF" "$AK3" > /dev/null
+    if is_true "$TG_NOTIFY"; then
+        KERNEL_VERSION="$(make -s -C "$KERNEL" kernelversion | cut -d- -f1)" || true
+        export KERNEL_VERSION
+    fi
 }
 
 main() {
     : "${TARGET_NAME:?Use the Python CLI: uv run esk build}"
-    SECONDS=0 STEP=0
+    SECONDS=0 STEP=0 BUILD_TIMINGS=""
     validate_deps
     validate_env
     count prepare_output
@@ -79,7 +107,6 @@ main() {
     trap 'error "Build failed in $BUILD_STAGE at line $LINENO: $BASH_COMMAND (log: $LOGFILE)"' ERR
     count init_build
     count prepare_dirs
-    count send_start_msg
     count fetch_sources
     count setup_toolchain
     count setup_ld_preload

@@ -66,22 +66,51 @@ init_logging() {
 error() {
     local status=$?
     trap - ERR
+    stop_telegram_progress
     printf '[ERROR] %s\n' "$*" >&2
     if is_true "${TG_NOTIFY:-false}"; then
-        printf '%s' "$*" | py_cli tg notify error || true
+        printf '%s' "$*" | py_cli tg notify error --seconds "$SECONDS" 2> /dev/null || warn "Telegram notification failed"
     fi
     ((status != 0)) || status=1
     exit "$status"
 }
 
-send_start_msg() {
+telegram_progress() {
     is_true "$TG_NOTIFY" || return 0
-    py_cli tg notify start
+    py_cli tg notify "$1" --seconds "$SECONDS" 2> /dev/null || warn "Telegram notification failed"
+}
+
+telegram_heartbeat() {
+    local sleep_pid=""
+
+    trap 'if [[ -n $sleep_pid ]]; then
+        kill "$sleep_pid" 2> /dev/null || true
+        wait "$sleep_pid" 2> /dev/null || true
+    fi
+    exit 0' TERM
+
+    while true; do
+        sleep 60 &
+        sleep_pid=$!
+        wait "$sleep_pid" || break
+        sleep_pid=""
+
+        # Bash defers TERM handling until the foreground notification returns.
+        telegram_progress "$1"
+    done
+}
+
+stop_telegram_progress() {
+    if [[ -n ${TG_PROGRESS_PID:-} ]]; then
+        kill "$TG_PROGRESS_PID" 2> /dev/null || true
+        wait "$TG_PROGRESS_PID" 2> /dev/null || true
+        unset TG_PROGRESS_PID
+    fi
 }
 
 finalize_build() {
     local build_time="$1"
     success "Build success in $((build_time / 60))m $((build_time % 60))s"
     is_true "$TG_NOTIFY" || return 0
-    py_cli tg notify success --seconds "$build_time"
+    py_cli tg notify success --seconds "$build_time" 2> /dev/null || warn "Telegram notification failed"
 }

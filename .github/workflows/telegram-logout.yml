@@ -1,0 +1,15 @@
+name: Log out Telegram bot
+on: workflow_dispatch
+
+jobs:
+  logout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log out of the cloud Bot API
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${TG_BOT_TOKEN:?Set the TG_BOT_TOKEN secret}"
+          curl -fsS --max-time 30 -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/logOut" |
+            jq -e '.ok and (.result == true)' >/dev/null

@@ -309,9 +309,10 @@ def rich_message_payload(
     lines: list[str], buttons: str, files: dict[str, Path]
 ) -> dict[str, Any]:
     content = lines.copy()
-    if "kernel" in files:
-        content.insert(1, render_document("kernel"))
-    build_files = [render_document(name) for name in files if name != "kernel"]
+    featured_file = "kernel" if "kernel" in files else "log"
+    if featured_file in files:
+        content.insert(1, render_document(featured_file))
+    build_files = [render_document(name) for name in files if name != featured_file]
     if build_files:
         content.append(
             "<details><summary>Build files</summary>"

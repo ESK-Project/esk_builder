@@ -176,12 +176,11 @@ jobs:
       - name: Send release notification
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          TG_BOT_API_URL: http://127.0.0.1:8081
           RELEASE_URL: ${{ steps.publish.outputs.url }}
         run: |
           set -euo pipefail
@@ -189,41 +188,7 @@ jobs:
             echo "Skipping Telegram release notification. Set TG_BOT_TOKEN and TG_CHAT_ID to enable it."
             exit 0
           fi
-          if [[ -z "$TELEGRAM_API_ID" || -z "$TELEGRAM_API_HASH" ]]; then
-            echo "::error::Set TELEGRAM_API_ID and TELEGRAM_API_HASH for the local Bot API server."
-            exit 1
-          fi
-
-          # Ref: https://github.com/NextAlone/NagramActionRelated/blob/main/channel-publish/action.yml
-          work="$(mktemp -d "$RUNNER_TEMP/telegram-bot-api.XXXXXX")"
-          server=""
-          cleanup() {
-            if [[ -n "$server" ]]; then
-              kill "$server" 2>/dev/null || true
-              wait "$server" 2>/dev/null || true
-            fi
-            rm -rf -- "$work"
-          }
-          trap cleanup EXIT
-
-          bot_api_release=https://api.github.com/repos/NextAlone/NagramActionRelated/releases/latest
-          bot_api_url="$(uv run --locked --no-dev esk release asset-url telegram-bot-api-linux-x86_64 \
-            --api-url "$bot_api_release")"
-          curl -fsSLo "$work/telegram-bot-api" --retry 3 "$bot_api_url"
-          chmod +x "$work/telegram-bot-api"
-          "$work/telegram-bot-api" --local --http-ip-address=127.0.0.1 --http-port=8081 \
-            --dir="$work" >/dev/null 2>&1 &
-          server=$!
-
-          for attempt in {1..30}; do
-            if curl --silent --max-time 1 --output /dev/null "$TG_BOT_API_URL/"; then
-              break
-            fi
-            if [[ "$attempt" == 30 ]] || ! kill -0 "$server" 2>/dev/null; then
-              echo "::error::The local Telegram Bot API server did not start."
-              exit 1
-            fi
-            sleep 1
-          done
+          source scripts/telegram.sh
+          start_telegram
 
           uv run --locked --no-dev esk tg release publish_files/release.json "$RELEASE_URL"

@@ -40,8 +40,8 @@ count() {
 
 validate_env() {
     if is_true "$TG_NOTIFY"; then
-        if [[ -z ${TG_BOT_TOKEN:-} || -z ${TG_CHAT_ID:-} ]]; then
-            warn "Telegram credentials missing; notifications disabled"
+        if [[ -z ${TG_BOT_TOKEN:-} || -z ${TG_CHAT_ID:-} || -z ${TG_BOT_API_URL:-} ]]; then
+            warn "Telegram needs TG_BOT_TOKEN, TG_CHAT_ID and TG_BOT_API_URL. Skipping notifications."
             export TG_NOTIFY=false
         fi
     fi

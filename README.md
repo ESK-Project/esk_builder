@@ -99,12 +99,12 @@ Add the secrets under Settings → Secrets and variables → Actions. Give the b
 | --- | --- | --- |
 | `TG_CHAT_ID` | Both | Chat ID or channel username |
 | `TG_BOT_TOKEN` | Both | Bot token from BotFather |
-| `TELEGRAM_API_ID` | Release | `api_id` from Telegram |
-| `TELEGRAM_API_HASH` | Release | `api_hash` from Telegram |
+| `TELEGRAM_API_ID` | Both | `api_id` from Telegram |
+| `TELEGRAM_API_HASH` | Both | `api_hash` from Telegram |
 
-Sign in at my.telegram.org and create an application under "API development tools". Copy its API ID and hash into the release secrets above. [Sign in](https://my.telegram.org) · [Telegram setup guide](https://core.telegram.org/api/obtaining_api_id)
+Sign in at my.telegram.org and create an application under "API development tools". Copy its API ID and hash into the secrets above. [Sign in](https://my.telegram.org) · [Telegram setup guide](https://core.telegram.org/api/obtaining_api_id)
 
-If the bot previously used the cloud Bot API, call `logOut` there once before its first local run. Cloud build notifications may be unavailable for 10 minutes after that call. [Telegram Bot API](https://core.telegram.org/bots/api#logout)
+If the bot used the cloud API, run "Log out Telegram bot" once in Actions. For local builds with `--notify`, set `TG_BOT_API_URL` to your local Bot API server.
 
 ## Development
 

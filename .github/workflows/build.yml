@@ -55,6 +55,10 @@ on:
         required: false
       TG_CHAT_ID:
         required: false
+      TELEGRAM_API_ID:
+        required: false
+      TELEGRAM_API_HASH:
+        required: false
 
 permissions:
   contents: read
@@ -149,8 +153,14 @@ jobs:
         id: build
         env:
           OUT_DIR: ${{ steps.settings.outputs.out_dir }}
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
           mapfile -d '' -t args < "$RUNNER_TEMP/esk-args"
+          if [[ "$NOTIFY" == "true" ]]; then
+            source scripts/telegram.sh
+            start_telegram || args+=(--no-notify)
+          fi
           status=0
           uv run --locked esk build "${args[@]}" || status=$?
           if [[ -f "$OUT_DIR/compiled" ]]; then

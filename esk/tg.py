@@ -2,8 +2,6 @@ import html
 import json
 import os
 import subprocess
-import sys
-from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
@@ -22,34 +20,18 @@ STAGES = (
     ("package", "Packaging"),
 )
 
-PUBLIC_BOT_API = "https://api.telegram.org"
-
 
 class TelegramError(Exception):
     pass
 
 
-def request(
-    method: str,
-    data: dict[str, Any],
-    files: dict[str, Path] | None = None,
-    *,
-    api_url: str = PUBLIC_BOT_API,
-    timeout: int | None = None,
-) -> Any:
+def request(method: str, data: dict[str, Any], *, timeout: int = 30) -> Any:
     token = env("TG_BOT_TOKEN")
+    api_url = env("TG_BOT_API_URL").rstrip("/")
     try:
-        with ExitStack() as stack:
-            uploads = {
-                name: (path.name, stack.enter_context(path.open("rb")))
-                for name, path in (files or {}).items()
-            }
-            response = requests.post(
-                f"{api_url}/bot{token}/{method}",
-                data=data,
-                files=uploads or None,
-                timeout=timeout if timeout is not None else (180 if uploads else 30),
-            )
+        response = requests.post(
+            f"{api_url}/bot{token}/{method}", data=data, timeout=timeout
+        )
         payload = response.json()
         if not response.ok or not payload.get("ok"):
             description = str(payload.get("description", "request failed"))
@@ -233,18 +215,14 @@ def render_document(name: str) -> str:
     return f'<tg-document src="tg://document?id={name}"></tg-document>'
 
 
-def document_media(
-    files: dict[str, Path], *, local: bool = False
-) -> list[dict[str, Any]]:
+def document_media(files: dict[str, Path]) -> list[dict[str, Any]]:
     # Ref: https://github.com/NextAlone/NagramActionRelated/blob/main/channel-publish/channel_publish.py
     return [
         {
             "id": name,
             "media": {
                 "type": "document",
-                "media": path.resolve(strict=True).as_uri()
-                if local
-                else f"attach://{name}",
+                "media": path.resolve(strict=True).as_uri(),
             },
         }
         for name, path in files.items()
@@ -268,21 +246,24 @@ def render_buttons(commit_url: str) -> str:
 
 
 def publish_notification(
-    state_file: Path, chat_id: str, content: dict[str, Any], files: dict[str, Path]
+    state_file: Path, chat_id: str, content: dict[str, Any]
 ) -> None:
     message_id = state_file.read_text().strip() if state_file.is_file() else ""
 
     data = {"chat_id": chat_id, "rich_message": json.dumps(content)}
+    timeout = 180 if content.get("media") else 30
     if message_id:
         try:
-            request("editMessageText", data | {"message_id": message_id}, files)
+            request(
+                "editMessageText", data | {"message_id": message_id}, timeout=timeout
+            )
             return
         except TelegramError as error:
             if "message is not modified" in str(error).lower():
                 return
             if "message to edit not found" not in str(error).lower():
                 raise
-    sent = request("sendRichMessage", data, files)
+    sent = request("sendRichMessage", data, timeout=timeout)
     state_file.write_text(str(sent["message_id"]))
 
 
@@ -336,15 +317,15 @@ def notify(stage: str, seconds: int = 0, message: str = "") -> None:
     state_file = out / ".telegram-message-id"
     lines, buttons = render_notification(stage, seconds, message, out, token)
     files = build_attachments(out, stage)
-    payload = rich_message_payload(lines, buttons, files)
     try:
-        publish_notification(state_file, chat_id, payload, files)
-    except TelegramError:
+        payload = rich_message_payload(lines, buttons, files)
+        publish_notification(state_file, chat_id, payload)
+    except TelegramError, OSError:
         if not files:
             raise
         fallback = "".join(lines) + buttons
         fallback += "<p>Files could not be attached. See workflow artifacts.</p>"
-        publish_notification(state_file, chat_id, {"html": fallback}, {})
+        publish_notification(state_file, chat_id, {"html": fallback})
 
 
 def release_downloads(
@@ -436,21 +417,11 @@ def render_release(manifest: Path, release_url: str) -> dict[str, Any]:
     ]
     payload: dict[str, Any] = {"html": "".join(sections)}
     if files:
-        payload["media"] = document_media(files, local=True)
+        payload["media"] = document_media(files)
     return payload
 
 
 def send_release(manifest: Path, release_url: str) -> None:
-    api_url = env("TG_BOT_API_URL").rstrip("/")
     payload = render_release(manifest, release_url)
     data = {"chat_id": env("TG_CHAT_ID"), "rich_message": json.dumps(payload)}
-    try:
-        request("sendRichMessage", data, api_url=api_url, timeout=600)
-    finally:
-        try:
-            request("logOut", {}, api_url=api_url)
-        except TelegramError as error:
-            print(
-                f"[WARN] Could not log out of the local Telegram Bot API: {error}",
-                file=sys.stderr,
-            )
+    request("sendRichMessage", data, timeout=600)

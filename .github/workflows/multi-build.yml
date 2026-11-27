@@ -63,7 +63,7 @@ jobs:
           DEBUG: ${{ inputs.debug }}
           KERNEL_REF: ${{ inputs.kernel_ref }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: uv run --locked --no-dev python scripts/workflow.py plan
+        run: uv run --locked --no-dev python -m esk.workflow plan
 
       - name: Check release tag
         if: ${{ inputs.create_release }}
@@ -120,8 +120,7 @@ jobs:
       - name: Check build outputs
         env:
           SELECTION: ${{ needs.plan.outputs.selected }}
-          CREATE_RELEASE: ${{ inputs.create_release }}
-        run: uv run --locked --no-dev python scripts/workflow.py verify
+        run: uv run --locked --no-dev python -m esk.workflow verify
 
   release:
     name: Publish release
@@ -145,9 +144,8 @@ jobs:
         id: notes
         env:
           SELECTION: ${{ needs.plan.outputs.selected }}
-          CREATE_RELEASE: ${{ inputs.create_release }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: uv run --locked --no-dev python scripts/workflow.py notes
+        run: uv run --locked --no-dev python -m esk.workflow notes
 
       - name: Publish
         id: publish

@@ -29,10 +29,10 @@ meta_app = typer.Typer(no_args_is_help=True)
 tg_app = typer.Typer(no_args_is_help=True)
 source_app = typer.Typer(no_args_is_help=True)
 
-app.add_typer(release_app, name="release")
-app.add_typer(meta_app, name="meta")
-app.add_typer(tg_app, name="tg")
-app.add_typer(source_app, name="source")
+app.add_typer(release_app, name="release", hidden=True)
+app.add_typer(meta_app, name="meta", hidden=True)
+app.add_typer(tg_app, name="tg", hidden=True)
+app.add_typer(source_app, name="source", hidden=True)
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 
@@ -201,7 +201,7 @@ def show(
         typer.echo(f"{label}: {value}")
 
 
-@app.command("resolve", help="Print resolved build settings as JSON.")
+@app.command("resolve", help="Print resolved build settings as JSON.", hidden=True)
 def resolve(
     target: Annotated[str | None, typer.Argument()] = None,
     preset: str = "vnl",

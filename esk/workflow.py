@@ -3,13 +3,13 @@ import hashlib
 import os
 import shutil
 import subprocess
-import tomllib
 from itertools import groupby
 from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from esk.models import MetadataPayload, PlannedBuild, ReleaseBuild, ReleaseManifest
+from .config import read_toml
+from .models import MetadataPayload, PlannedBuild, ReleaseBuild, ReleaseManifest
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_MATRIX: TypeAdapter[list[PlannedBuild]] = TypeAdapter(list[PlannedBuild])
@@ -36,7 +36,7 @@ def valid_version(version: str) -> bool:
 
 def csv_items(value: str) -> list[str]:
     items = [item.strip() for item in value.split(",")]
-    if not items or any(not item for item in items):
+    if any(not item for item in items):
         raise ValueError("Device and variant lists must contain nonempty names")
     return list(dict.fromkeys(items))
 
@@ -96,8 +96,7 @@ def pin_kernel_refs(
     commits: dict[tuple[str, str], str] = {}
     planned = []
     for device, preset in selection:
-        with (ROOT / "targets" / f"{device}.toml").open("rb") as handle:
-            target = tomllib.load(handle)
+        target = read_toml(ROOT / "targets" / f"{device}.toml")
         key = (target["kernel_url"], override or target["kernel_ref"])
         if key not in commits:
             commits[key] = resolve_kernel_ref(*key)
@@ -277,8 +276,7 @@ def main() -> None:
         available_devices = sorted(
             path.stem for path in (ROOT / "targets").glob("*.toml")
         )
-        with (ROOT / "presets.toml").open("rb") as handle:
-            available_variants = list(tomllib.load(handle))
+        available_variants = list(read_toml(ROOT / "presets.toml"))
         selection = select_builds(
             os.environ["MODE"],
             os.environ["DEVICES"],

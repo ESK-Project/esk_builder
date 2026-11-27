@@ -2,13 +2,19 @@
 
 Build and package the ESK Kernel for xaga and plato, locally or with GitHub Actions.
 
-| Preset | KernelSU | SuSFS |
+## Build your first ZIP
+
+1. Open Actions → Build kernel → Run workflow.
+2. Choose your device (`xaga` or `plato`) and a variant. Leave the other fields at their defaults.
+3. Run the workflow. When it finishes, download the artifact and open it to find the `*-AnyKernel3.zip`.
+
+| Variant | KernelSU | SuSFS |
 | --- | --- | --- |
 | `vnl` (default) | No | No |
 | `ksu` | Yes | No |
 | `ksu-susfs` | Yes | Yes |
 
-## Setup
+## Build locally
 
 On Ubuntu 24.04:
 
@@ -30,51 +36,46 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
 ```bash
 uv python install 3.14
 uv sync --locked --no-dev
-uv run esk doctor xaga # optional
 uv run esk build xaga
 ```
 
-The builder downloads its sources and toolchain. Builds do not require root.
+The builder downloads its sources and toolchain and runs without root. The ZIP lands in `out/xaga/vnl/`. Use `plato` for Plato or add `--preset ksu-susfs` to change the variant. If setup fails, run `uv run esk doctor xaga`.
 
-## Build
+## Advanced setup
+
+### Configuration
+
+Choose where to make a change based on which builds should use it.
+
+| File | What it controls |
+| --- | --- |
+| `builder.toml` | Shared defaults, including the default device, Clang source, and compiler cache |
+| `targets/<device>.toml` | The device's kernel and AnyKernel3 sources, kernel config, and module-load directory |
+| `targets/<device>/modules.load*` | Which modules load during boot and recovery |
+| `presets.toml` | Which variants enable KernelSU and SuSFS |
+
+The builder starts with `builder.toml`, then applies the device config, the chosen preset, and finally any command-line options you pass. With no device or preset specified, it uses `default_target` from `builder.toml` and the `vnl` preset.
+
+To see which sources, config, and output path a build would use, run:
 
 ```bash
-uv run esk targets
-uv run esk presets
 uv run esk show xaga --preset ksu-susfs
-uv run esk build xaga --preset ksu-susfs
-uv run esk build plato --preset ksu
 ```
 
-Omit the target to use `default_target` from `builder.toml`. Run `uv run esk build --help` for all options. Common overrides:
+### Build overrides
 
-```bash
-uv run esk build xaga --kernel-ref my-branch
-uv run esk build xaga --preset ksu-susfs --ksu-ref main
-uv run esk build xaga --debug
-uv run esk build xaga --jobs 8 --no-ccache
-```
+Run `uv run esk build --help` for all options. Use `--kernel-ref` to pick a kernel branch, tag, or commit and `--ksu-ref` to override the BakaSU ref. `--debug` enables performance debugging. To collect scheduler statistics at runtime, run `sysctl -w kernel.sched_schedstats=1`.
 
-`--ksu-ref` overrides BakaSU branch.
+### Outputs and cleanup
 
-`--debug` enables kernel debugging options. Enable scheduler statistics at runtime when needed:
-
-```bash
-sysctl -w kernel.sched_schedstats=1
-```
-
-Settings are resolved in this order: CLI options > preset > target > `builder.toml`.
-
-## Outputs and cleanup
-
-Outputs are written to `out/<target>/<preset>/`:
+Find the build files in `out/<target>/<preset>/`.
 
 - `*-AnyKernel3.zip`: flashable package.
 - `module.tar.xz`: staged modules, also included in the package.
 - `build.json` and `build.log`: build settings, revisions, artifact hashes, and log.
 - `ccache-stats.txt` and `ccache.log`: compiler-cache information when enabled.
 
-The builder resets and cleans its managed source checkouts. Keep your own edits outside `sources/`. 
+The builder resets and cleans its managed source checkouts. Keep your own edits outside `sources/`.
 After changing a source URL, use `--reset-sources` to replace the old checkout.
 
 ```bash
@@ -83,22 +84,11 @@ uv run esk clean xaga              # work, staging, and outputs
 uv run esk clean xaga --sources    # also remove source checkouts
 ```
 
-By default, the ccache defaults to 2 GB.
+The default ccache limit is 2 GB.
 
-## Configuration
+### Batch builds and releases
 
-- `builder.toml`: project defaults, toolchain sources, and cache settings.
-- `targets/*.toml`: kernel and AnyKernel3 sources, config overlays, and module-load paths.
-- `targets/<target>/modules.load*`: device module-load lists.
-- `presets.toml`: KernelSU and SuSFS settings.
-
-## GitHub Actions
-
-`build.yml` builds a single device and preset. `multi-build.yml` builds all combinations or a custom selection.
-
-The multi-build workflow resolves kernel refs, checks artifacts and can publish prereleases to `ESK-Project/esk-releases`. Publishing requires `GH_TOKEN` and a release tag. Debug builds cannot be published.
-
-Build outputs and logs are available as GitHub Actions artifacts.
+Use Multi-variant Build to build several devices or variants at once. Choose full for all combinations or custom to pick your own. To publish a prerelease to `ESK-Project/esk-releases`, enable Create release and enter a release tag. Publishing requires `GH_TOKEN`. Debug builds are for testing and cannot be published.
 
 ### Telegram notifications
 
@@ -129,4 +119,4 @@ just check
 
 Use `just fmt` to format shell scripts and Python code.
 
-`esk/` handles the CLI and configuration. `build.sh` and `scripts/` handle kernel builds.
+`esk/` holds the CLI, configuration, and CI workflow code. `build.sh` and `scripts/` hold the shell build steps.

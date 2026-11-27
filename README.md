@@ -114,7 +114,7 @@ To turn this on, add the secrets below in your GitHub repo under Settings → Se
 | `TELEGRAM_API_ID` | Release | `api_id` from Telegram |
 | `TELEGRAM_API_HASH` | Release | `api_hash` from Telegram |
 
-For release posts, sign in at [my.telegram.org](https://my.telegram.org), open “API development tools”, and create an application. Copy the two values into the secrets above. CI uses them to upload the ZIPs through a temporary Telegram server. [Telegram setup guide](https://core.telegram.org/api/obtaining_api_id)
+For release posts, sign in at [my.telegram.org](https://my.telegram.org), open "API development tools", and create an application. Copy the two values into the secrets above. CI uses them to upload the ZIPs through a temporary Telegram server. [Telegram setup guide](https://core.telegram.org/api/obtaining_api_id)
 
 If the bot previously used the cloud Bot API, call `logOut` there once before its first local run. Cloud build notifications may be unavailable for 10 minutes after that call. [Telegram Bot API](https://core.telegram.org/bots/api#logout)
 

@@ -1,6 +1,6 @@
 description = "Xiaomi xaga (MT6895)"
 kernel_url = "https://github.com/ESK-Project/android_kernel_xiaomi_mt6895"
-kernel_ref = "main"
+kernel_ref = "mali-r54"
 ak3_url = "https://github.com/ESK-Project/AnyKernel3"
 ak3_ref = "xaga"
 defconfig = "gki_defconfig"
